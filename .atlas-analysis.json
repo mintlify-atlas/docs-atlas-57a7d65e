@@ -1,0 +1,133 @@
+{
+  "projectType": "saas",
+  "projectName": "Worlds Platform",
+  "projectDescription": "World models as a Service - Auto-memory and context engine for AI agents with SPARQL reasoning",
+  "theme": "aspen",
+  "primaryColor": "#fb9c04",
+  "lightColor": "#fcdf7f",
+  "darkColor": "#6d7475",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "concepts"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/console",
+              "guides/worlds",
+              "guides/sparql",
+              "guides/search",
+              "guides/ai-integration"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/vercel-ai-sdk",
+              "integrations/langchain",
+              "integrations/custom"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "SDK Reference",
+        "groups": [
+          {
+            "group": "Worlds SDK",
+            "pages": [
+              "sdk/installation",
+              "sdk/configuration",
+              "sdk/worlds-client",
+              "sdk/types"
+            ]
+          },
+          {
+            "group": "AI SDK",
+            "pages": [
+              "ai-sdk/overview",
+              "ai-sdk/tools",
+              "ai-sdk/chat"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "API",
+            "pages": [
+              "api/authentication",
+              "api/worlds",
+              "api/sparql",
+              "api/search",
+              "api/import-export",
+              "api/logs"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI Reference",
+        "groups": [
+          {
+            "group": "CLI",
+            "pages": [
+              "cli/installation",
+              "cli/commands",
+              "cli/configuration"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "SPARQL-based reasoning and federated knowledge discovery",
+    "Semantic search with vector embeddings",
+    "AI-native tool-calling for LLM integration",
+    "Visual knowledge graph management console",
+    "RDF import/export with multiple formats",
+    "Persistent context layer for AI agents",
+    "Edge-optimized low-latency operations"
+  ],
+  "publicApiSurface": [
+    "WorldsSdk.worlds.list()",
+    "WorldsSdk.worlds.get()",
+    "WorldsSdk.worlds.create()",
+    "WorldsSdk.worlds.update()",
+    "WorldsSdk.worlds.delete()",
+    "WorldsSdk.worlds.sparql()",
+    "WorldsSdk.worlds.search()",
+    "WorldsSdk.worlds.import()",
+    "WorldsSdk.worlds.export()",
+    "WorldsSdk.worlds.listLogs()",
+    "createTools() - AI SDK",
+    "discoverSchema() - AI SDK",
+    "executeSparql() - AI SDK",
+    "generateIri() - AI SDK",
+    "searchEntities() - AI SDK",
+    "disambiguateEntities() - AI SDK",
+    "validateRdf() - AI SDK",
+    "worlds create - CLI",
+    "worlds list - CLI",
+    "worlds get - CLI",
+    "worlds update - CLI",
+    "worlds delete - CLI",
+    "worlds sparql - CLI",
+    "worlds search - CLI",
+    "worlds import - CLI",
+    "worlds export - CLI",
+    "worlds chat - CLI"
+  ]
+}
