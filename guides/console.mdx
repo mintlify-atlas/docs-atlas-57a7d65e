@@ -1,0 +1,165 @@
+---
+title: Using the Worlds Console
+description: Guide to using the Worlds Console web interface for managing knowledge graphs
+---
+
+The Worlds Console is a web-based dashboard that provides a visual interface for managing your worlds (knowledge bases). It offers powerful features for exploration, querying, and administration without requiring code.
+
+## Accessing the Console
+
+The Worlds Console is available at **[https://console.wazoo.dev](https://console.wazoo.dev)**.
+
+The console uses **WorkOS AuthKit** for secure authentication. You can sign in with your email or through supported identity providers.
+
+## Key Features
+
+### Visual Graph Exploration
+
+The console provides an interactive interface to explore your knowledge graphs:
+
+- **Overview Tab**: View world metadata, connection details, and quick-start code snippets
+- **Resource Tables**: Browse entities and relationships in an organized table format
+- **Triple Search**: Semantically search through your knowledge base using natural language
+
+### SPARQL Playground
+
+The SPARQL tab offers a full-featured query editor:
+
+- **Syntax Highlighting**: Color-coded SPARQL syntax for better readability
+- **Suggested Queries**: Pre-built query templates to help you get started:
+  - List all triples
+  - Count total triples
+  - Insert example data
+  - Find unique predicates
+  - Delete operations
+
+- **Interactive Results**: Query results are displayed in formatted JSON with copy-to-clipboard functionality
+- **Real-time Execution**: Run SELECT, INSERT, DELETE, and other SPARQL operations directly in the browser
+
+### World Management
+
+#### Creating Worlds
+
+Click the **"Create World"** button from your organization dashboard:
+
+1. Enter a **label** for your world (e.g., "Customer Knowledge Base")
+2. Optionally add a **description**
+3. The system automatically generates a URL-friendly **slug**
+
+#### Updating Worlds
+
+Navigate to **Settings** to modify:
+
+- World label and description
+- Slug (URL identifier)
+- Advanced configuration options
+
+#### Deleting Worlds
+
+<Warning>
+Deleting a world permanently removes all its data. This action cannot be undone.
+</Warning>
+
+From the world's Settings tab, scroll to the "Danger Zone" section to delete the world.
+
+### Search Functionality
+
+The **Search** tab provides semantic search powered by vector embeddings:
+
+- Enter natural language queries to find relevant triples
+- Filter results by subjects, predicates, or types
+- View relevance scores (vector rank and full-text rank)
+- Export search results for further analysis
+
+### Logs and Monitoring
+
+The **Logs** tab displays activity for your world:
+
+- View query execution logs
+- Filter by log level (info, warn, error, debug)
+- Monitor performance and troubleshoot issues
+- Paginated log history
+
+## Connecting via SDK
+
+The console displays connection information and code snippets for each world:
+
+<CodeGroup>
+
+```typescript TypeScript
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+
+const sdk = new WorldsSdk({
+  baseUrl: "https://api.wazoo.dev",
+  apiKey: "your-api-key",
+});
+
+const result = await sdk.worlds.sparql(
+  "your-world-id",
+  `SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10`
+);
+```
+
+```bash CLI
+export WORLDS_BASE_URL=https://api.wazoo.dev
+export WORLDS_API_KEY=your-api-key
+
+worlds sparql "SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10"
+```
+
+</CodeGroup>
+
+<Note>
+API keys are managed at the organization level. Navigate to your organization settings to view or rotate keys.
+</Note>
+
+## Organizations and Access Control
+
+The console supports multi-tenancy through organizations:
+
+- **Organization Switcher**: Switch between different organizations from the top navigation
+- **Team Management**: Invite team members and manage permissions (coming soon)
+- **API Keys**: Each organization has its own API key for SDK/CLI access
+
+## Local Development
+
+The console is built with a **local-first architecture**, making it possible to run against a local Worlds API instance:
+
+```bash
+# Set your local API endpoint
+export WORLDS_BASE_URL=http://localhost:8000
+export WORLDS_API_KEY=your-local-key
+```
+
+The console automatically detects local endpoints and adapts the UI accordingly.
+
+## Tips and Best Practices
+
+<Tip>
+**Use Suggested Queries**: The SPARQL playground includes pre-built queries that demonstrate common patterns. Start with these to learn SPARQL syntax.
+</Tip>
+
+<Tip>
+**Export Before Deleting**: Always export your world data before deletion. Use the export functionality to back up your knowledge graphs in various RDF formats.
+</Tip>
+
+<Tip>
+**Monitor Logs**: Regularly check the logs tab to identify slow queries or errors that might impact performance.
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Managing Worlds" icon="database" href="/guides/worlds">
+    Learn about world CRUD operations and import/export
+  </Card>
+  <Card title="Writing SPARQL" icon="code" href="/guides/sparql">
+    Master SPARQL queries for your knowledge graphs
+  </Card>
+  <Card title="Semantic Search" icon="search" href="/guides/search">
+    Explore vector-based search capabilities
+  </Card>
+  <Card title="SDK Reference" icon="book" href="/sdk/installation">
+    Integrate Worlds into your applications
+  </Card>
+</CardGroup>

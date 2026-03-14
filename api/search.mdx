@@ -1,0 +1,288 @@
+---
+title: Search Endpoint
+description: Semantic search across RDF triples
+---
+
+The search endpoint provides semantic search capabilities over RDF triples using vector embeddings and full-text search. It combines vector similarity and keyword matching to find relevant triples.
+
+## Search Triples
+
+<Badge variant="success">GET</Badge> `/worlds/:id/search`
+
+Perform semantic search across triples in a world.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  World ID (ULID) or slug to search
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="query" type="string" required>
+  Search query text. This is used for both vector similarity and full-text matching.
+</ParamField>
+
+<ParamField query="limit" type="number" default="20">
+  Maximum number of results to return (minimum: 1, maximum: 100)
+</ParamField>
+
+<ParamField query="subjects" type="string[]" optional>
+  Filter results to triples with these subject URIs (can be specified multiple times)
+</ParamField>
+
+<ParamField query="predicates" type="string[]" optional>
+  Filter results to triples with these predicate URIs (can be specified multiple times)
+</ParamField>
+
+<ParamField query="types" type="string[]" optional>
+  Filter results to subjects with these RDF types (can be specified multiple times)
+</ParamField>
+
+### Response
+
+Returns an array of triple search results, ordered by relevance score (highest first):
+
+<ResponseField name="subject" type="string">
+  Subject URI of the triple
+</ResponseField>
+
+<ResponseField name="predicate" type="string">
+  Predicate URI of the triple
+</ResponseField>
+
+<ResponseField name="object" type="string">
+  Object value (URI or literal) of the triple
+</ResponseField>
+
+<ResponseField name="score" type="number">
+  Combined relevance score (higher is more relevant)
+</ResponseField>
+
+<ResponseField name="vecRank" type="number | null">
+  Vector similarity rank (null if not applicable)
+</ResponseField>
+
+<ResponseField name="ftsRank" type="number | null">
+  Full-text search rank (null if not applicable)
+</ResponseField>
+
+<ResponseField name="worldId" type="string" optional>
+  World ID (included when searching across multiple worlds)
+</ResponseField>
+
+## Examples
+
+### Basic Search
+
+<CodeGroup>
+
+```bash cURL
+curl "https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/search?query=artificial+intelligence&limit=10" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json Response
+[
+  {
+    "subject": "http://example.org/topics/ai",
+    "predicate": "http://www.w3.org/2000/01/rdf-schema#label",
+    "object": "Artificial Intelligence",
+    "score": 0.92,
+    "vecRank": 1,
+    "ftsRank": 1
+  },
+  {
+    "subject": "http://example.org/topics/ml",
+    "predicate": "http://www.w3.org/2000/01/rdf-schema#comment",
+    "object": "Machine learning is a subset of artificial intelligence",
+    "score": 0.87,
+    "vecRank": 2,
+    "ftsRank": 2
+  }
+]
+```
+
+</CodeGroup>
+
+### Search with Filters
+
+Filter by specific subjects:
+
+<CodeGroup>
+
+```bash cURL
+curl "https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/search?query=name&subjects=http://example.org/alice&subjects=http://example.org/bob" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json Response
+[
+  {
+    "subject": "http://example.org/alice",
+    "predicate": "http://xmlns.com/foaf/0.1/name",
+    "object": "Alice Johnson",
+    "score": 0.95,
+    "vecRank": 1,
+    "ftsRank": 1
+  },
+  {
+    "subject": "http://example.org/bob",
+    "predicate": "http://xmlns.com/foaf/0.1/name",
+    "object": "Bob Smith",
+    "score": 0.94,
+    "vecRank": 2,
+    "ftsRank": 2
+  }
+]
+```
+
+</CodeGroup>
+
+### Search by Predicate
+
+Find all triples with a specific predicate:
+
+<CodeGroup>
+
+```bash cURL
+curl "https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/search?query=&predicates=http://schema.org/email" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json Response
+[
+  {
+    "subject": "http://example.org/alice",
+    "predicate": "http://schema.org/email",
+    "object": "alice@example.com",
+    "score": 1.0,
+    "vecRank": null,
+    "ftsRank": null
+  }
+]
+```
+
+</CodeGroup>
+
+### Search by Type
+
+Find entities of a specific RDF type:
+
+<CodeGroup>
+
+```bash cURL
+curl "https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/search?query=researcher&types=http://schema.org/Person" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json Response
+[
+  {
+    "subject": "http://example.org/dr-smith",
+    "predicate": "http://schema.org/jobTitle",
+    "object": "Senior Researcher",
+    "score": 0.88,
+    "vecRank": 1,
+    "ftsRank": 1
+  }
+]
+```
+
+</CodeGroup>
+
+## Search Ranking
+
+The search combines two ranking methods:
+
+1. **Vector Similarity (`vecRank`)**: Uses embeddings to find semantically similar content
+2. **Full-Text Search (`ftsRank`)**: Uses keyword matching for exact term matches
+
+The final `score` combines both methods, prioritizing results that match well in both dimensions.
+
+<Note>
+- Empty queries with filters return results without semantic ranking
+- Results are always ordered by descending score
+- The `limit` parameter caps the number of returned results
+</Note>
+
+## Filter Parameters
+
+Multiple filter values can be combined:
+
+- **subjects**: OR logic - returns triples matching ANY of the specified subjects
+- **predicates**: OR logic - returns triples matching ANY of the specified predicates  
+- **types**: OR logic - returns subjects with ANY of the specified types
+
+When multiple filter types are used together, they are combined with AND logic.
+
+### Example with Multiple Filters
+
+<CodeGroup>
+
+```bash cURL
+curl "https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/search?query=contact&types=http://schema.org/Person&predicates=http://schema.org/email&limit=5" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+</CodeGroup>
+
+This searches for triples where:
+- The query "contact" matches semantically
+- The subject has type `http://schema.org/Person`
+- The predicate is `http://schema.org/email`
+
+## Error Responses
+
+<ResponseField name="400 Bad Request" type="error">
+  Invalid parameters (e.g., limit out of range)
+</ResponseField>
+
+<ResponseField name="401 Unauthorized" type="error">
+  Missing or invalid authentication
+</ResponseField>
+
+<ResponseField name="403 Forbidden" type="error">
+  Insufficient permissions
+</ResponseField>
+
+<ResponseField name="404 Not Found" type="error">
+  World does not exist
+</ResponseField>
+
+<ResponseField name="500 Internal Server Error" type="error">
+  Search operation failed
+</ResponseField>
+
+## Using the SDK
+
+```typescript
+import { WorldsSdk } from '@wazoo/worlds-sdk';
+
+const sdk = new WorldsSdk({
+  baseUrl: 'https://your-worlds-instance.com',
+  apiKey: 'YOUR_API_KEY'
+});
+
+// Basic search
+const results = await sdk.worlds.search(
+  '01HQZX9Y2ABCDEFGH123456789',
+  'artificial intelligence',
+  { limit: 10 }
+);
+
+// Search with filters
+const filtered = await sdk.worlds.search(
+  '01HQZX9Y2ABCDEFGH123456789',
+  'contact information',
+  {
+    limit: 20,
+    types: ['http://schema.org/Person'],
+    predicates: ['http://schema.org/email', 'http://schema.org/telephone']
+  }
+);
+```
+
+<Note>
+All search operations are logged to the world's log stream for auditing.
+</Note>

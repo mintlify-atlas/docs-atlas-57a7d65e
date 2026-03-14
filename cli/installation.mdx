@@ -1,0 +1,83 @@
+---
+title: 'Installation'
+description: 'Install and configure the Worlds CLI'
+---
+
+## Prerequisites
+
+The Worlds CLI requires [Deno](https://deno.land/) to be installed on your system. If you don't have Deno installed, visit [deno.land](https://deno.land/) for installation instructions.
+
+## Installation
+
+Install the Worlds CLI globally using Deno:
+
+```bash
+deno install -A --name worlds jsr:@wazoo/worlds-cli
+```
+
+This command installs the CLI with all permissions (`-A`) and names it `worlds`.
+
+<Note>
+The `-A` flag grants all permissions to the CLI. This is required for the CLI to interact with the file system, network, and environment variables.
+</Note>
+
+## Package Information
+
+- **Package Name**: `@wazoo/worlds-cli`
+- **Version**: `0.0.1`
+- **Registry**: [JSR (JavaScript Registry)](https://jsr.io/@wazoo/worlds-cli)
+
+## Verification
+
+Verify the installation by running:
+
+```bash
+worlds --help
+```
+
+You should see the Worlds CLI logo and available commands:
+
+```bash
+Usage: worlds <command> [options]
+
+Commands:
+  create   Create a new world
+  update   Update an existing world
+  delete   Delete a world
+  list     List worlds
+  get      Get a world by ID
+  search   Search within a world
+  sparql   Execute a SPARQL query
+  import   Import data into a world
+  export   Export data from a world
+  chat     Interactive AI chat with a world
+```
+
+## Updating
+
+To update the CLI to the latest version, run the installation command again:
+
+```bash
+deno install -A --name worlds jsr:@wazoo/worlds-cli
+```
+
+Deno will prompt you to overwrite the existing installation.
+
+## Uninstallation
+
+To uninstall the Worlds CLI:
+
+```bash
+deno uninstall worlds
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/cli/configuration">
+    Set up environment variables and configuration options
+  </Card>
+  <Card title="Commands Reference" icon="terminal" href="/cli/commands">
+    Explore all available CLI commands
+  </Card>
+</CardGroup>

@@ -1,0 +1,610 @@
+---
+title: "Custom Integrations"
+description: "Build custom integrations using the Worlds Platform REST API"
+---
+
+While the Worlds SDK and AI SDK provide convenient abstractions, you can also integrate Worlds Platform directly using its REST API. This gives you maximum flexibility to build custom integrations for any framework or language.
+
+## API Overview
+
+The Worlds Platform REST API provides endpoints for:
+
+- **World Management**: Create, read, update, and delete knowledge bases
+- **SPARQL Operations**: Execute queries and updates following the W3C SPARQL 1.1 Protocol
+- **Semantic Search**: Vector-based and full-text search for entities
+- **Data Import/Export**: Bulk operations in various RDF formats
+- **Logs**: Access world operation logs
+
+## Authentication
+
+All API requests require an API key passed in the `Authorization` header:
+
+```http
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Base URL
+
+<CodeGroup>
+  ```text Local
+  http://localhost:8000
+  ```
+
+  ```text Cloud
+  https://api.wazoo.dev
+  ```
+</CodeGroup>
+
+## Core Endpoints
+
+### List Worlds
+
+Get a paginated list of all worlds:
+
+```http
+GET /worlds?page=1&pageSize=20
+Authorization: Bearer YOUR_API_KEY
+```
+
+**Response:**
+
+```json
+[
+  {
+    "id": "01HQXYZ123",
+    "slug": "my-world",
+    "label": "My World",
+    "description": "My knowledge base",
+    "createdAt": 1704067200000,
+    "updatedAt": 1704067200000,
+    "deletedAt": null
+  }
+]
+```
+
+### Get World
+
+Get details of a specific world:
+
+```http
+GET /worlds/{worldId}
+Authorization: Bearer YOUR_API_KEY
+```
+
+### Create World
+
+Create a new world:
+
+```http
+POST /worlds
+Authorization: Bearer YOUR_API_KEY
+Content-Type: application/json
+
+{
+  "slug": "my-knowledge-base",
+  "label": "My Knowledge Base",
+  "description": "A world for storing my data"
+}
+```
+
+### Update World
+
+Update world metadata:
+
+```http
+PUT /worlds/{worldId}
+Authorization: Bearer YOUR_API_KEY
+Content-Type: application/json
+
+{
+  "label": "Updated Label",
+  "description": "Updated description"
+}
+```
+
+### Delete World
+
+Delete a world (soft delete):
+
+```http
+DELETE /worlds/{worldId}
+Authorization: Bearer YOUR_API_KEY
+```
+
+## SPARQL Endpoint
+
+The SPARQL endpoint follows the [W3C SPARQL 1.1 Protocol](https://www.w3.org/TR/sparql11-protocol/) specification.
+
+### Execute SPARQL Query
+
+```http
+POST /worlds/{worldId}/sparql
+Authorization: Bearer YOUR_API_KEY
+Content-Type: application/sparql-query
+Accept: application/sparql-results+json
+
+SELECT ?s ?p ?o WHERE {
+  ?s ?p ?o .
+} LIMIT 10
+```
+
+**Response for SELECT queries:**
+
+```json
+{
+  "head": {
+    "vars": ["s", "p", "o"]
+  },
+  "results": {
+    "bindings": [
+      {
+        "s": { "type": "uri", "value": "http://example.com/alice" },
+        "p": { "type": "uri", "value": "http://schema.org/givenName" },
+        "o": { "type": "literal", "value": "Alice" }
+      }
+    ]
+  }
+}
+```
+
+### Execute SPARQL Update
+
+```http
+POST /worlds/{worldId}/sparql
+Authorization: Bearer YOUR_API_KEY
+Content-Type: application/sparql-update
+
+INSERT DATA {
+  <http://example.com/alice> <http://schema.org/givenName> "Alice" .
+}
+```
+
+**Response:** `204 No Content` on success
+
+### ASK Query
+
+```http
+POST /worlds/{worldId}/sparql
+Authorization: Bearer YOUR_API_KEY
+Content-Type: application/sparql-query
+
+ASK {
+  <http://example.com/alice> <http://schema.org/givenName> "Alice" .
+}
+```
+
+**Response:**
+
+```json
+{
+  "head": {},
+  "boolean": true
+}
+```
+
+## Search Endpoint
+
+Perform semantic search using vector embeddings and full-text search:
+
+```http
+GET /worlds/{worldId}/search?query=software+engineer&limit=10
+Authorization: Bearer YOUR_API_KEY
+```
+
+**Optional Parameters:**
+
+- `query` (required): Search query text
+- `limit` (optional): Maximum results (default: 10)
+- `subjects` (optional): Filter by subject URIs
+- `predicates` (optional): Filter by predicate URIs
+- `types` (optional): Filter by rdf:type URIs
+
+**Response:**
+
+```json
+[
+  {
+    "subject": "http://example.com/alice",
+    "predicate": "http://schema.org/jobTitle",
+    "object": "Software Engineer",
+    "vecRank": 0.92,
+    "ftsRank": 0.88,
+    "score": 0.90,
+    "worldId": "01HQXYZ123"
+  }
+]
+```
+
+## Import/Export
+
+### Import RDF Data
+
+Bulk import data in various RDF formats:
+
+```http
+POST /worlds/{worldId}/import
+Authorization: Bearer YOUR_API_KEY
+Content-Type: text/turtle
+
+@prefix schema: <http://schema.org/> .
+
+<http://example.com/alice> a schema:Person ;
+  schema:givenName "Alice" ;
+  schema:jobTitle "Engineer" .
+```
+
+**Supported Content-Types:**
+
+- `text/turtle` - Turtle format
+- `application/n-triples` - N-Triples
+- `text/n3` - N3 format
+- `application/n-quads` - N-Quads
+
+### Export RDF Data
+
+Export a world's data in RDF format:
+
+```http
+GET /worlds/{worldId}/export?format=turtle
+Authorization: Bearer YOUR_API_KEY
+```
+
+**Response:** Binary data in the requested RDF format
+
+## Building a Custom SDK
+
+Here's how you might build a minimal custom SDK in different languages:
+
+### Python Example
+
+```python worlds_client.py
+import requests
+from typing import Dict, List, Optional
+
+class WorldsClient:
+    def __init__(self, base_url: str, api_key: str):
+        self.base_url = base_url.rstrip('/')
+        self.api_key = api_key
+        self.headers = {
+            'Authorization': f'Bearer {api_key}'
+        }
+    
+    def create_world(self, slug: str, label: str, description: Optional[str] = None) -> Dict:
+        """Create a new world"""
+        response = requests.post(
+            f'{self.base_url}/worlds',
+            json={
+                'slug': slug,
+                'label': label,
+                'description': description
+            },
+            headers=self.headers
+        )
+        response.raise_for_status()
+        return response.json()
+    
+    def sparql(self, world_id: str, query: str) -> Dict:
+        """Execute a SPARQL query"""
+        headers = {
+            **self.headers,
+            'Content-Type': 'application/sparql-query',
+            'Accept': 'application/sparql-results+json'
+        }
+        response = requests.post(
+            f'{self.base_url}/worlds/{world_id}/sparql',
+            data=query,
+            headers=headers
+        )
+        response.raise_for_status()
+        
+        if response.status_code == 204:
+            return None
+        return response.json()
+    
+    def search(self, world_id: str, query: str, limit: int = 10) -> List[Dict]:
+        """Search for entities"""
+        response = requests.get(
+            f'{self.base_url}/worlds/{world_id}/search',
+            params={'query': query, 'limit': limit},
+            headers=self.headers
+        )
+        response.raise_for_status()
+        return response.json()
+
+# Usage
+client = WorldsClient(
+    base_url='http://localhost:8000',
+    api_key='your-api-key'
+)
+
+world = client.create_world(
+    slug='test-world',
+    label='Test World'
+)
+
+client.sparql(
+    world['id'],
+    'INSERT DATA { <http://example.com/alice> <http://schema.org/givenName> "Alice" . }'
+)
+
+results = client.search(world['id'], 'Alice')
+print(results)
+```
+
+### Go Example
+
+```go worlds_client.go
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+)
+
+type WorldsClient struct {
+	BaseURL string
+	APIKey  string
+	Client  *http.Client
+}
+
+type World struct {
+	ID          string  `json:"id"`
+	Slug        string  `json:"slug"`
+	Label       string  `json:"label"`
+	Description *string `json:"description"`
+	CreatedAt   int64   `json:"createdAt"`
+	UpdatedAt   int64   `json:"updatedAt"`
+}
+
+type CreateWorldParams struct {
+	Slug        string  `json:"slug"`
+	Label       string  `json:"label"`
+	Description *string `json:"description,omitempty"`
+}
+
+func NewWorldsClient(baseURL, apiKey string) *WorldsClient {
+	return &WorldsClient{
+		BaseURL: baseURL,
+		APIKey:  apiKey,
+		Client:  &http.Client{},
+	}
+}
+
+func (c *WorldsClient) CreateWorld(params CreateWorldParams) (*World, error) {
+	body, _ := json.Marshal(params)
+	req, _ := http.NewRequest("POST", c.BaseURL+"/worlds", bytes.NewBuffer(body))
+	req.Header.Set("Authorization", "Bearer "+c.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to create world: %s", resp.Status)
+	}
+
+	var world World
+	json.NewDecoder(resp.Body).Decode(&world)
+	return &world, nil
+}
+
+func (c *WorldsClient) SPARQL(worldID, query string) (interface{}, error) {
+	req, _ := http.NewRequest("POST", c.BaseURL+"/worlds/"+worldID+"/sparql",
+		bytes.NewBufferString(query))
+	req.Header.Set("Authorization", "Bearer "+c.APIKey)
+	req.Header.Set("Content-Type", "application/sparql-query")
+	req.Header.Set("Accept", "application/sparql-results+json")
+
+	resp, err := c.Client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNoContent {
+		return nil, nil
+	}
+
+	var result interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+	return result, nil
+}
+
+func main() {
+	client := NewWorldsClient("http://localhost:8000", "your-api-key")
+
+	world, _ := client.CreateWorld(CreateWorldParams{
+		Slug:  "test-world",
+		Label: "Test World",
+	})
+
+	fmt.Printf("Created world: %s\n", world.ID)
+}
+```
+
+### cURL Examples
+
+You can also interact with the API using cURL:
+
+```bash
+# Create a world
+curl -X POST http://localhost:8000/worlds \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "slug": "my-world",
+    "label": "My World"
+  }'
+
+# Add data with SPARQL
+curl -X POST http://localhost:8000/worlds/01HQXYZ123/sparql \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/sparql-update" \
+  -d 'INSERT DATA {
+    <http://example.com/alice> <http://schema.org/givenName> "Alice" .
+  }'
+
+# Query with SPARQL
+curl -X POST http://localhost:8000/worlds/01HQXYZ123/sparql \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/sparql-query" \
+  -H "Accept: application/sparql-results+json" \
+  -d 'SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10'
+
+# Search for entities
+curl "http://localhost:8000/worlds/01HQXYZ123/search?query=Alice&limit=5" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Error Handling
+
+The API returns standard HTTP status codes:
+
+- `200 OK` - Request successful
+- `201 Created` - Resource created
+- `204 No Content` - Update successful (SPARQL UPDATE)
+- `400 Bad Request` - Invalid request parameters
+- `401 Unauthorized` - Missing or invalid API key
+- `404 Not Found` - Resource not found
+- `500 Internal Server Error` - Server error
+
+Error responses include a JSON body:
+
+```json
+{
+  "error": "Invalid SPARQL query",
+  "details": "Syntax error at line 1, column 5"
+}
+```
+
+## Rate Limiting
+
+<Warning>
+  The API may implement rate limiting. Check response headers for rate limit information:
+  - `X-RateLimit-Limit`: Maximum requests per window
+  - `X-RateLimit-Remaining`: Remaining requests
+  - `X-RateLimit-Reset`: Time when limit resets
+</Warning>
+
+## Reference Implementation
+
+The official Worlds SDK (TypeScript) is open source and serves as a reference implementation. You can study it to understand best practices:
+
+```typescript
+// From @wazoo/worlds-sdk/clients/worlds/sdk.ts
+export class Worlds {
+  public async sparql(
+    id: string,
+    query: string,
+    options?: {
+      defaultGraphUris?: string[];
+      namedGraphUris?: string[];
+    },
+  ): Promise<ExecuteSparqlOutput> {
+    const url = new URL(`${this.options.baseUrl}/worlds/${id}/sparql`);
+
+    if (options?.defaultGraphUris) {
+      for (const uri of options.defaultGraphUris) {
+        url.searchParams.append("default-graph-uri", uri);
+      }
+    }
+
+    if (options?.namedGraphUris) {
+      for (const uri of options.namedGraphUris) {
+        url.searchParams.append("named-graph-uri", uri);
+      }
+    }
+
+    const response = await this.fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.options.apiKey}`,
+        "Content-Type": "application/sparql-query",
+        "Accept": "application/sparql-results+json",
+      },
+      body: query,
+    });
+
+    if (!response.ok) {
+      const errorMessage = await parseError(response);
+      throw new Error(`Failed to execute SPARQL: ${errorMessage}`);
+    }
+
+    if (response.status === 204) {
+      return null;
+    }
+
+    return await response.json();
+  }
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use connection pooling">
+    For production applications, reuse HTTP connections to improve performance:
+    
+    ```python
+    # Python with requests
+    session = requests.Session()
+    session.headers.update({'Authorization': f'Bearer {api_key}'})
+    ```
+  </Accordion>
+
+  <Accordion title="Implement retry logic">
+    Implement exponential backoff for transient failures:
+    
+    ```python
+    from tenacity import retry, stop_after_attempt, wait_exponential
+    
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
+    def sparql_with_retry(world_id, query):
+        return client.sparql(world_id, query)
+    ```
+  </Accordion>
+
+  <Accordion title="Validate inputs client-side">
+    Validate SPARQL syntax and parameters before sending to reduce API calls and improve error messages.
+  </Accordion>
+
+  <Accordion title="Use streaming for large exports">
+    When exporting large datasets, use streaming to avoid memory issues:
+    
+    ```python
+    response = requests.get(
+        f'{base_url}/worlds/{world_id}/export',
+        params={'format': 'turtle'},
+        headers=headers,
+        stream=True
+    )
+    
+    with open('export.ttl', 'wb') as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/api/authentication">
+    Complete API endpoint documentation
+  </Card>
+  <Card title="SPARQL Guide" icon="database" href="/guides/sparql">
+    Learn SPARQL query language
+  </Card>
+  <Card title="SDK Reference" icon="code" href="/sdk/installation">
+    See the TypeScript SDK implementation
+  </Card>
+  <Card title="Vercel AI SDK" icon="robot" href="/integrations/vercel-ai-sdk">
+    Use the official AI SDK integration
+  </Card>
+</CardGroup>

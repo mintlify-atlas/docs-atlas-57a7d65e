@@ -1,0 +1,545 @@
+---
+title: AI Tools Reference
+description: Complete reference for all AI tools in the Worlds AI SDK
+---
+
+The AI SDK provides specialized tools for building AI agents that can intelligently interact with knowledge graphs.
+
+## Tool Creation
+
+Each tool is created with a factory function that takes configuration options:
+
+```typescript
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+import { createSearchEntitiesTool } from "@wazoo/worlds-ai-sdk";
+
+const sdk = new WorldsSdk({ /* ... */ });
+
+const searchTool = createSearchEntitiesTool({
+  sdk,
+  sources: [{ id: "my-world" }]
+});
+```
+
+## Tools
+
+### discoverSchema
+
+Discover available classes and properties in the knowledge base schema.
+
+```typescript
+import { createDiscoverSchemaTool } from "@wazoo/worlds-ai-sdk";
+
+const tool = createDiscoverSchemaTool(options);
+```
+
+**Options:**
+
+<ParamField path="sdk" type="WorldsSdk" required>
+  The Worlds SDK instance
+</ParamField>
+
+<ParamField path="sources" type="Source[]" required>
+  Array of sources to search. Should include sources with `schema: true`
+</ParamField>
+
+**Tool Input:**
+
+<ParamField path="source" type="string" required>
+  The ID of the schema source to discover concepts from
+</ParamField>
+
+<ParamField path="referenceText" type="string" required>
+  Natural language description of entities or properties to discover (e.g., "A person with a name")
+</ParamField>
+
+<ParamField path="limit" type="number" default="10">
+  Maximum number of results to return (1-100)
+</ParamField>
+
+**Tool Output:**
+
+```typescript
+interface DiscoverSchemaOutput {
+  results: Array<{
+    type: "Class" | "Property";
+    iri: string;
+    label?: string;
+    description?: string;
+    domain?: string[];      // For properties
+    range?: string[];       // For properties
+  }>;
+}
+```
+
+**Example:**
+
+```typescript
+const tool = createDiscoverSchemaTool({ 
+  sdk, 
+  sources: [{ id: "schema-world", schema: true }]
+});
+
+// When called by an AI agent:
+// Input: { source: "schema-world", referenceText: "person with name and email" }
+// Output: {
+//   results: [
+//     {
+//       type: "Class",
+//       iri: "http://schema.org/Person",
+//       label: "Person",
+//       description: "A person (alive, dead, undead, or fictional)."
+//     },
+//     {
+//       type: "Property",
+//       iri: "http://schema.org/name",
+//       label: "name",
+//       domain: ["http://schema.org/Thing"],
+//       range: ["http://schema.org/Text"]
+//     },
+//     {
+//       type: "Property",
+//       iri: "http://schema.org/email",
+//       label: "email",
+//       domain: ["http://schema.org/Person"]
+//     }
+//   ]
+// }
+```
+
+---
+
+### searchEntities
+
+Search for entities in the knowledge base using natural language.
+
+```typescript
+import { createSearchEntitiesTool } from "@wazoo/worlds-ai-sdk";
+
+const tool = createSearchEntitiesTool(options);
+```
+
+**Options:**
+
+<ParamField path="sdk" type="WorldsSdk" required>
+  The Worlds SDK instance
+</ParamField>
+
+<ParamField path="sources" type="Source[]" required>
+  Array of sources to search
+</ParamField>
+
+**Tool Input:**
+
+<ParamField path="source" type="string" required>
+  The ID of the source to search within
+</ParamField>
+
+<ParamField path="query" type="string" required>
+  The search query text (natural language)
+</ParamField>
+
+<ParamField path="types" type="string[]" optional>
+  Filter by RDF types (IRIs)
+</ParamField>
+
+<ParamField path="limit" type="number" default="10">
+  Maximum number of results (1-100)
+</ParamField>
+
+**Tool Output:**
+
+```typescript
+interface SearchEntitiesOutput {
+  results: TripleSearchResult[];
+}
+
+interface TripleSearchResult {
+  subject: string;
+  predicate: string;
+  object: string;
+  vecRank: number | null;
+  ftsRank: number | null;
+  score: number;
+  worldId?: string;
+}
+```
+
+**Example:**
+
+```typescript
+const tool = createSearchEntitiesTool({ 
+  sdk, 
+  sources: [{ id: "my-world" }]
+});
+
+// When called by an AI agent:
+// Input: { 
+//   source: "my-world", 
+//   query: "Albert Einstein",
+//   types: ["http://schema.org/Person"],
+//   limit: 5
+// }
+// Output: {
+//   results: [
+//     {
+//       subject: "http://example.org/person/einstein",
+//       predicate: "http://schema.org/name",
+//       object: "Albert Einstein",
+//       score: 0.95,
+//       vecRank: 1,
+//       ftsRank: 1
+//     }
+//   ]
+// }
+```
+
+---
+
+### disambiguateEntities
+
+Resolve ambiguous entity references by selecting the best match from search results.
+
+```typescript
+import { createDisambiguateEntitiesTool } from "@wazoo/worlds-ai-sdk";
+
+const tool = createDisambiguateEntitiesTool(options);
+```
+
+**Options:**
+
+<ParamField path="disambiguate" type="function" optional>
+  Custom disambiguation function. If not provided, uses the default algorithm.
+</ParamField>
+
+**Tool Input:**
+
+<ParamField path="candidates" type="TripleSearchResult[]" required>
+  Array of potential entity matches from a previous search
+</ParamField>
+
+<ParamField path="query" type="string" required>
+  The name or description of the entity to resolve
+</ParamField>
+
+**Tool Output:**
+
+```typescript
+interface DisambiguateEntitiesOutput {
+  match: TripleSearchResult | null;
+  confidence: number;
+  reason: string;
+}
+```
+
+**Default Algorithm:**
+
+The default disambiguation function:
+1. Checks for exact label matches (case-insensitive)
+2. Falls back to the highest-scoring result
+3. Returns `null` if confidence is too low (< 0.5)
+
+**Example:**
+
+```typescript
+const tool = createDisambiguateEntitiesTool();
+
+// When called by an AI agent:
+// Input: {
+//   query: "Einstein",
+//   candidates: [
+//     { subject: "...", object: "Albert Einstein", score: 0.95 },
+//     { subject: "...", object: "Einstein Bros. Bagels", score: 0.60 }
+//   ]
+// }
+// Output: {
+//   match: { subject: "...", object: "Albert Einstein", score: 0.95 },
+//   confidence: 0.95,
+//   reason: "Highest ranking candidate selected based on RRF score."
+// }
+```
+
+**Custom Disambiguation:**
+
+```typescript
+const customDisambiguate = async ({ candidates, query }) => {
+  // Use AI or custom logic to pick the best match
+  const best = candidates[0];
+  return {
+    match: best,
+    confidence: 0.9,
+    reason: "Selected using custom logic"
+  };
+};
+
+const tool = createDisambiguateEntitiesTool({ 
+  disambiguate: customDisambiguate 
+});
+```
+
+---
+
+### executeSparql
+
+Execute SPARQL queries and updates with safety controls.
+
+```typescript
+import { createExecuteSparqlTool } from "@wazoo/worlds-ai-sdk";
+
+const tool = createExecuteSparqlTool(options);
+```
+
+**Options:**
+
+<ParamField path="sdk" type="WorldsSdk" required>
+  The Worlds SDK instance
+</ParamField>
+
+<ParamField path="sources" type="Source[]" required>
+  Array of sources. Only sources with `write: true` allow UPDATE operations
+</ParamField>
+
+**Tool Input:**
+
+<ParamField path="source" type="string" required>
+  The ID of the source to execute the query against
+</ParamField>
+
+<ParamField path="sparql" type="string" required>
+  The SPARQL query or update to execute
+</ParamField>
+
+**Tool Output:**
+
+```typescript
+type ExecuteSparqlOutput =
+  | SparqlSelectResults   // SELECT queries
+  | SparqlAskResults      // ASK queries
+  | SparqlQuadsResults    // CONSTRUCT/DESCRIBE queries
+  | null;                 // UPDATE operations
+```
+
+**Safety Features:**
+
+- Blocks UPDATE operations (INSERT, DELETE) on read-only sources
+- Validates source exists in the configured sources array
+- Automatically detects query type
+
+**Example:**
+
+```typescript
+const tool = createExecuteSparqlTool({ 
+  sdk, 
+  sources: [
+    { id: "read-only-world" },
+    { id: "writable-world", write: true }
+  ]
+});
+
+// SELECT query (allowed on any source)
+// Input: {
+//   source: "read-only-world",
+//   sparql: "SELECT ?s WHERE { ?s a <http://schema.org/Person> } LIMIT 5"
+// }
+// Output: { head: { vars: ["s"] }, results: { bindings: [...] } }
+
+// INSERT update (only allowed on writable sources)
+// Input: {
+//   source: "writable-world",
+//   sparql: "INSERT DATA { <http://example.org/alice> a <http://schema.org/Person> }"
+// }
+// Output: null (success)
+
+// Blocked: UPDATE on read-only source throws error
+```
+
+---
+
+### generateIri
+
+Generate a unique IRI for new entities.
+
+```typescript
+import { createGenerateIriTool } from "@wazoo/worlds-ai-sdk";
+
+const tool = createGenerateIriTool(options);
+```
+
+**Options:**
+
+<ParamField path="generateIri" type="function" optional>
+  Custom IRI generation function. Defaults to generating ULIDs.
+</ParamField>
+
+**Tool Input:**
+
+<ParamField path="referenceText" type="string" required>
+  The text of the associated entity (used for context, not for generation)
+</ParamField>
+
+**Tool Output:**
+
+```typescript
+interface GenerateIriOutput {
+  iri: string;
+}
+```
+
+**Default Generation:**
+
+By default, generates IRIs in the format:
+```
+https://wazoo.dev/.well-known/genid/{ULID}
+```
+
+**Example:**
+
+```typescript
+const tool = createGenerateIriTool();
+
+// When called by an AI agent:
+// Input: { referenceText: "Alice Johnson" }
+// Output: { iri: "https://wazoo.dev/.well-known/genid/01ARZ3NDEKTSV4RRFFQ69G5FAV" }
+```
+
+**Custom Generation:**
+
+```typescript
+const customGenerateIri = () => {
+  const id = Math.random().toString(36).substring(7);
+  return `http://example.org/entity/${id}`;
+};
+
+const tool = createGenerateIriTool({ 
+  generateIri: customGenerateIri 
+});
+```
+
+<Warning>
+  The tool description instructs agents to ALWAYS search for existing entities before generating new IRIs to prevent duplicates.
+</Warning>
+
+---
+
+### validateRdf
+
+Validate RDF triples against ontologies and SHACL shapes before insertion.
+
+```typescript
+import { createValidateRdfTool } from "@wazoo/worlds-ai-sdk";
+
+const tool = createValidateRdfTool(options);
+```
+
+**Options:**
+
+<ParamField path="sdk" type="WorldsSdk" optional>
+  The Worlds SDK instance (required if validating against a world)
+</ParamField>
+
+<ParamField path="shacl" type="string" optional>
+  SHACL shapes in Turtle format for validation
+</ParamField>
+
+**Tool Input:**
+
+<ParamField path="triples" type="Triple[]" required>
+  Array of RDF triples to validate
+</ParamField>
+
+<ParamField path="worldId" type="string" optional>
+  World ID to fetch context and ontology from
+</ParamField>
+
+**Tool Output:**
+
+```typescript
+interface ValidateRdfOutput {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+interface Triple {
+  subject: string;
+  predicate: string;
+  object: string;
+}
+```
+
+**Example:**
+
+```typescript
+const tool = createValidateRdfTool({ 
+  sdk,
+  shacl: `
+    @prefix sh: <http://www.w3.org/ns/shacl#> .
+    @prefix schema: <http://schema.org/> .
+    
+    schema:PersonShape a sh:NodeShape ;
+      sh:targetClass schema:Person ;
+      sh:property [
+        sh:path schema:name ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+      ] .
+  `
+});
+
+// When called by an AI agent:
+// Input: {
+//   worldId: "my-world",
+//   triples: [
+//     {
+//       subject: "http://example.org/alice",
+//       predicate: "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+//       object: "http://schema.org/Person"
+//     },
+//     {
+//       subject: "http://example.org/alice",
+//       predicate: "http://schema.org/name",
+//       object: "Alice"
+//     }
+//   ]
+// }
+// Output: {
+//   valid: true,
+//   errors: [],
+//   warnings: []
+// }
+```
+
+## Composing Tools
+
+You can create different tool combinations for different agents:
+
+```typescript
+// Read-only agent
+const readOnlyTools = {
+  discoverSchema: createDiscoverSchemaTool({ sdk, sources }),
+  searchEntities: createSearchEntitiesTool({ sdk, sources }),
+  executeSparql: createExecuteSparqlTool({ 
+    sdk, 
+    sources: [{ id: "my-world" }] // No write: true
+  })
+};
+
+// Full access agent
+const fullAccessTools = {
+  ...readOnlyTools,
+  disambiguateEntities: createDisambiguateEntitiesTool(),
+  generateIri: createGenerateIriTool(),
+  validateRdf: createValidateRdfTool({ sdk })
+};
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Chat Integration" icon="comments" href="/ai-sdk/chat">
+    Learn how to use these tools with chat models
+  </Card>
+  <Card title="Worlds SDK Types" icon="code" href="/sdk/types">
+    Reference for underlying SDK types
+  </Card>
+</CardGroup>

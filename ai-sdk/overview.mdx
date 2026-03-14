@@ -1,0 +1,226 @@
+---
+title: AI SDK Overview
+description: Build AI agents that can interact with knowledge graphs using the Worlds AI SDK
+---
+
+The Worlds AI SDK provides AI-native tools for building intelligent agents that can query, analyze, and modify knowledge graphs. It's designed to work seamlessly with the Vercel AI SDK and other AI frameworks.
+
+## What is the AI SDK?
+
+The AI SDK wraps the Worlds SDK with specialized tools optimized for AI agents:
+
+- **Schema Discovery** - Automatically discover available classes and properties
+- **Entity Search** - Find entities using natural language queries
+- **Entity Disambiguation** - Resolve ambiguous entity references
+- **SPARQL Execution** - Execute queries and updates with safety controls
+- **IRI Generation** - Generate unique identifiers for new entities
+- **RDF Validation** - Validate triples against ontologies and SHACL shapes
+
+## Why Use the AI SDK?
+
+Building AI agents that work with knowledge graphs requires specialized capabilities:
+
+<CardGroup cols={2}>
+  <Card title="Semantic Search" icon="magnifying-glass">
+    Search entities using natural language instead of precise SPARQL queries
+  </Card>
+  <Card title="Schema Awareness" icon="sitemap">
+    Discover and use the correct ontology terms automatically
+  </Card>
+  <Card title="Safe Updates" icon="shield-check">
+    Prevent invalid data with automatic validation
+  </Card>
+  <Card title="Entity Resolution" icon="link">
+    Avoid duplicates by finding existing entities before creating new ones
+  </Card>
+</CardGroup>
+
+## Installation
+
+Install both the Worlds SDK and AI SDK:
+
+<CodeGroup>
+
+```bash npm
+npm install @wazoo/worlds-sdk @wazoo/worlds-ai-sdk ai
+```
+
+```bash pnpm
+pnpm add @wazoo/worlds-sdk @wazoo/worlds-ai-sdk ai
+```
+
+```bash yarn
+yarn add @wazoo/worlds-sdk @wazoo/worlds-ai-sdk ai
+```
+
+```bash deno
+# Import directly from JSR:
+import { createTools } from "jsr:@wazoo/worlds-ai-sdk";
+import { WorldsSdk } from "jsr:@wazoo/worlds-sdk";
+```
+
+</CodeGroup>
+
+## Package Information
+
+- **Package Name**: `@wazoo/worlds-ai-sdk`
+- **Version**: `0.0.1`
+- **Peer Dependencies**: `@wazoo/worlds-sdk`, `ai`
+
+## Quick Start
+
+Create AI tools for your agent in just a few lines:
+
+```typescript
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+import { 
+  createDiscoverSchemaTool,
+  createSearchEntitiesTool,
+  createExecuteSparqlTool 
+} from "@wazoo/worlds-ai-sdk";
+import { generateText } from "ai";
+
+// Initialize the SDK
+const sdk = new WorldsSdk({
+  baseUrl: "https://api.worlds.example.com",
+  apiKey: process.env.WORLDS_API_KEY!
+});
+
+// Create AI tools
+const tools = {
+  discoverSchema: createDiscoverSchemaTool({ 
+    sdk, 
+    sources: [{ id: "my-schema-world", schema: true }]
+  }),
+  searchEntities: createSearchEntitiesTool({ 
+    sdk,
+    sources: [{ id: "my-data-world" }]
+  }),
+  executeSparql: createExecuteSparqlTool({ 
+    sdk,
+    sources: [{ id: "my-data-world", write: true }]
+  })
+};
+
+// Use with an AI model
+const result = await generateText({
+  model: yourModel,
+  tools,
+  prompt: "Find all people named Alice in the knowledge graph"
+});
+
+console.log(result.text);
+```
+
+## Core Concepts
+
+### Tools
+
+The AI SDK provides individual tool creation functions that you can compose based on your needs:
+
+- `createDiscoverSchemaTool` - Discover ontology terms
+- `createSearchEntitiesTool` - Search for entities
+- `createDisambiguateEntitiesTool` - Resolve entity ambiguity
+- `createExecuteSparqlTool` - Execute SPARQL queries/updates
+- `createGenerateIriTool` - Generate unique IRIs
+- `createValidateRdfTool` - Validate RDF data
+
+### Sources
+
+Sources represent different knowledge graphs your agent can access:
+
+```typescript
+interface Source {
+  id: string;        // World ID
+  write?: boolean;   // Allow write operations
+  schema?: boolean;  // Contains schema/ontology
+}
+```
+
+You can configure multiple sources for different purposes:
+
+```typescript
+const sources = [
+  { id: "schema-world", schema: true },       // Read-only schema
+  { id: "data-world", write: true },          // Writable data
+  { id: "reference-world" }                   // Read-only reference data
+];
+```
+
+### Safety Controls
+
+The AI SDK includes built-in safety features:
+
+- **Read-only enforcement** - Prevent updates to sources not marked as writable
+- **Schema validation** - Validate data against ontologies before insertion
+- **Entity resolution** - Encourage searching before creating new entities
+
+## Example: Complete AI Agent
+
+Here's a complete example of an AI agent that can query and update a knowledge graph:
+
+```typescript
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+import { 
+  createDiscoverSchemaTool,
+  createSearchEntitiesTool,
+  createDisambiguateEntitiesTool,
+  createExecuteSparqlTool,
+  createGenerateIriTool 
+} from "@wazoo/worlds-ai-sdk";
+import { generateText } from "ai";
+import { openai } from "@ai-sdk/openai";
+
+const sdk = new WorldsSdk({
+  baseUrl: process.env.WORLDS_BASE_URL!,
+  apiKey: process.env.WORLDS_API_KEY!
+});
+
+const sources = [
+  { id: "schema-world", schema: true },
+  { id: "my-knowledge-graph", write: true }
+];
+
+const tools = {
+  discoverSchema: createDiscoverSchemaTool({ sdk, sources }),
+  searchEntities: createSearchEntitiesTool({ sdk, sources }),
+  disambiguateEntities: createDisambiguateEntitiesTool(),
+  executeSparql: createExecuteSparqlTool({ sdk, sources }),
+  generateIri: createGenerateIriTool()
+};
+
+const result = await generateText({
+  model: openai("gpt-4o"),
+  tools,
+  maxSteps: 10,
+  prompt: `
+    Add a new person named "Alice Johnson" to the knowledge graph.
+    First check if she already exists. If not, create a new entity
+    with appropriate schema.org properties.
+  `
+});
+
+console.log(result.text);
+console.log("\nTool calls made:");
+for (const step of result.steps) {
+  if (step.toolCalls) {
+    for (const call of step.toolCalls) {
+      console.log(`- ${call.toolName}`);
+    }
+  }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="AI Tools Reference" icon="wrench" href="/ai-sdk/tools">
+    Explore all available AI tools and their parameters
+  </Card>
+  <Card title="Chat Integration" icon="comments" href="/ai-sdk/chat">
+    Learn how to integrate with chat models
+  </Card>
+  <Card title="Worlds SDK" icon="book" href="/sdk/installation">
+    Reference for the underlying Worlds SDK
+  </Card>
+</CardGroup>

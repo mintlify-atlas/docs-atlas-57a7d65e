@@ -1,0 +1,418 @@
+---
+title: "LangChain Integration"
+description: "Use Worlds Platform as a tool and retriever in LangChain agents"
+---
+
+While Worlds Platform doesn't yet have an official LangChain integration package, you can easily integrate Worlds into your LangChain agents using custom tools and retrievers.
+
+## Overview
+
+You can integrate Worlds Platform with LangChain in several ways:
+
+- **Custom Tools**: Wrap Worlds SDK methods as LangChain tools for agent use
+- **Custom Retriever**: Implement a retriever using Worlds' semantic search
+- **SPARQL Tool**: Create a tool that lets agents query knowledge graphs directly
+
+## Installation
+
+<CodeGroup>
+  ```bash npm
+  npx jsr add @wazoo/worlds-sdk
+  npm install langchain @langchain/openai
+  ```
+
+  ```bash pnpm
+  pnpm dlx jsr add @wazoo/worlds-sdk
+  pnpm add langchain @langchain/openai
+  ```
+
+  ```bash Deno
+  deno add jsr:@wazoo/worlds-sdk
+  deno add npm:langchain npm:@langchain/openai
+  ```
+</CodeGroup>
+
+## Custom Tool Integration
+
+### Basic SPARQL Tool
+
+Create a LangChain tool that allows agents to execute SPARQL queries:
+
+```typescript sparql-tool.ts
+import { DynamicStructuredTool } from "langchain/tools";
+import { z } from "zod";
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+
+const sdk = new WorldsSdk({
+  baseUrl: "http://localhost:8000",
+  apiKey: process.env.WORLDS_API_KEY!,
+});
+
+const worldId = "my-knowledge-base";
+
+const sparqlTool = new DynamicStructuredTool({
+  name: "sparql_query",
+  description:
+    "Execute a SPARQL query against the knowledge base. Use this to find information about entities, their properties, and relationships.",
+  schema: z.object({
+    query: z.string().describe("The SPARQL SELECT, ASK, CONSTRUCT, or DESCRIBE query to execute"),
+  }),
+  func: async ({ query }) => {
+    try {
+      const result = await sdk.worlds.sparql(worldId, query);
+      return JSON.stringify(result, null, 2);
+    } catch (error) {
+      return `Error executing SPARQL query: ${error.message}`;
+    }
+  },
+});
+
+export { sparqlTool };
+```
+
+### Entity Search Tool
+
+Create a tool for semantic entity search:
+
+```typescript search-tool.ts
+import { DynamicStructuredTool } from "langchain/tools";
+import { z } from "zod";
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+
+const sdk = new WorldsSdk({
+  baseUrl: "http://localhost:8000",
+  apiKey: process.env.WORLDS_API_KEY!,
+});
+
+const worldId = "my-knowledge-base";
+
+const searchTool = new DynamicStructuredTool({
+  name: "search_entities",
+  description:
+    "Search for entities in the knowledge base using semantic search. Returns relevant triples matching the query.",
+  schema: z.object({
+    query: z.string().describe("The search query (natural language)"),
+    limit: z.number().optional().describe("Maximum number of results (default: 10)"),
+  }),
+  func: async ({ query, limit = 10 }) => {
+    try {
+      const results = await sdk.worlds.search(worldId, query, { limit });
+      
+      return JSON.stringify(
+        results.map((r) => ({
+          subject: r.subject,
+          predicate: r.predicate,
+          object: r.object,
+          score: r.score,
+        })),
+        null,
+        2
+      );
+    } catch (error) {
+      return `Error searching entities: ${error.message}`;
+    }
+  },
+});
+
+export { searchTool };
+```
+
+### Using Tools with an Agent
+
+Combine the tools with a LangChain agent:
+
+```typescript agent.ts
+import { ChatOpenAI } from "@langchain/openai";
+import { AgentExecutor, createOpenAIFunctionsAgent } from "langchain/agents";
+import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
+import { sparqlTool } from "./sparql-tool";
+import { searchTool } from "./search-tool";
+
+const llm = new ChatOpenAI({
+  modelName: "gpt-4o",
+  temperature: 0,
+});
+
+const tools = [sparqlTool, searchTool];
+
+const prompt = ChatPromptTemplate.fromMessages([
+  ["system", "You are a helpful assistant with access to a knowledge graph. Use the tools to answer questions accurately."],
+  ["human", "{input}"],
+  new MessagesPlaceholder("agent_scratchpad"),
+]);
+
+const agent = await createOpenAIFunctionsAgent({
+  llm,
+  tools,
+  prompt,
+});
+
+const agentExecutor = new AgentExecutor({
+  agent,
+  tools,
+  verbose: true,
+});
+
+// Use the agent
+const result = await agentExecutor.invoke({
+  input: "Find all people in the knowledge base and tell me what they do.",
+});
+
+console.log(result.output);
+```
+
+## Custom Retriever
+
+Implement a LangChain retriever using Worlds' semantic search:
+
+```typescript worlds-retriever.ts
+import { BaseRetriever } from "@langchain/core/retrievers";
+import { Document } from "@langchain/core/documents";
+import type { WorldsSdk } from "@wazoo/worlds-sdk";
+
+export interface WorldsRetrieverConfig {
+  sdk: WorldsSdk;
+  worldId: string;
+  topK?: number;
+}
+
+export class WorldsRetriever extends BaseRetriever {
+  lc_namespace = ["worlds", "retrievers"];
+  
+  private sdk: WorldsSdk;
+  private worldId: string;
+  private topK: number;
+
+  constructor(config: WorldsRetrieverConfig) {
+    super();
+    this.sdk = config.sdk;
+    this.worldId = config.worldId;
+    this.topK = config.topK ?? 10;
+  }
+
+  async _getRelevantDocuments(query: string): Promise<Document[]> {
+    const results = await this.sdk.worlds.search(this.worldId, query, {
+      limit: this.topK,
+    });
+
+    return results.map((result) => {
+      const content = `${result.subject} ${result.predicate} ${result.object}`;
+      return new Document({
+        pageContent: content,
+        metadata: {
+          subject: result.subject,
+          predicate: result.predicate,
+          object: result.object,
+          score: result.score,
+          worldId: result.worldId,
+        },
+      });
+    });
+  }
+}
+```
+
+### Using the Retriever
+
+```typescript rag-example.ts
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+import { WorldsRetriever } from "./worlds-retriever";
+import { ChatOpenAI } from "@langchain/openai";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { RunnablePassthrough, RunnableSequence } from "@langchain/core/runnables";
+
+const sdk = new WorldsSdk({
+  baseUrl: "http://localhost:8000",
+  apiKey: process.env.WORLDS_API_KEY!,
+});
+
+const retriever = new WorldsRetriever({
+  sdk,
+  worldId: "my-knowledge-base",
+  topK: 5,
+});
+
+const llm = new ChatOpenAI({ modelName: "gpt-4o" });
+
+const prompt = ChatPromptTemplate.fromTemplate(`
+Answer the question based on the following context from the knowledge graph:
+
+{context}
+
+Question: {question}
+
+Answer:
+`);
+
+const chain = RunnableSequence.from([
+  {
+    context: (input: { question: string }) =>
+      retriever.invoke(input.question).then((docs) =>
+        docs.map((doc) => doc.pageContent).join("\n\n")
+      ),
+    question: new RunnablePassthrough(),
+  },
+  prompt,
+  llm,
+  new StringOutputParser(),
+]);
+
+const answer = await chain.invoke({
+  question: "Who works in the engineering department?",
+});
+
+console.log(answer);
+```
+
+## Advanced: Multi-Tool Agent
+
+Create a comprehensive agent with multiple Worlds tools:
+
+```typescript advanced-agent.ts
+import { DynamicStructuredTool } from "langchain/tools";
+import { z } from "zod";
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+import { ChatOpenAI } from "@langchain/openai";
+import { AgentExecutor, createOpenAIFunctionsAgent } from "langchain/agents";
+import { ChatPromptTemplate, MessagesPlaceholder } from "@langchain/core/prompts";
+
+const sdk = new WorldsSdk({
+  baseUrl: "http://localhost:8000",
+  apiKey: process.env.WORLDS_API_KEY!,
+});
+
+const worldId = "my-knowledge-base";
+
+// Tool 1: SPARQL Query
+const sparqlTool = new DynamicStructuredTool({
+  name: "execute_sparql",
+  description: "Execute a SPARQL query to retrieve structured data from the knowledge graph.",
+  schema: z.object({
+    query: z.string().describe("SPARQL query"),
+  }),
+  func: async ({ query }) => {
+    const result = await sdk.worlds.sparql(worldId, query);
+    return JSON.stringify(result);
+  },
+});
+
+// Tool 2: Semantic Search
+const searchTool = new DynamicStructuredTool({
+  name: "search_knowledge",
+  description: "Perform semantic search to find relevant entities and facts.",
+  schema: z.object({
+    query: z.string().describe("Search query"),
+    limit: z.number().default(10).describe("Number of results"),
+  }),
+  func: async ({ query, limit }) => {
+    const results = await sdk.worlds.search(worldId, query, { limit });
+    return JSON.stringify(results);
+  },
+});
+
+// Tool 3: Add Knowledge
+const addKnowledgeTool = new DynamicStructuredTool({
+  name: "add_knowledge",
+  description: "Add new facts to the knowledge graph using SPARQL INSERT.",
+  schema: z.object({
+    triples: z.string().describe("RDF triples to insert (Turtle or SPARQL syntax)"),
+  }),
+  func: async ({ triples }) => {
+    await sdk.worlds.sparql(
+      worldId,
+      `INSERT DATA { ${triples} }`
+    );
+    return "Knowledge added successfully";
+  },
+});
+
+// Create agent
+const llm = new ChatOpenAI({ modelName: "gpt-4o", temperature: 0 });
+const tools = [sparqlTool, searchTool, addKnowledgeTool];
+
+const prompt = ChatPromptTemplate.fromMessages([
+  ["system", `You are an AI assistant with access to a knowledge graph.
+  
+  You can:
+  - Search for information using semantic search
+  - Execute precise SPARQL queries for structured data
+  - Add new knowledge when needed
+  
+  Always verify information before adding new facts.`],
+  ["human", "{input}"],
+  new MessagesPlaceholder("agent_scratchpad"),
+]);
+
+const agent = await createOpenAIFunctionsAgent({ llm, tools, prompt });
+const agentExecutor = new AgentExecutor({ agent, tools, verbose: true });
+
+// Run the agent
+const result = await agentExecutor.invoke({
+  input: "Find information about Alice, and if she doesn't exist, add her as a Software Engineer.",
+});
+
+console.log(result.output);
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Provide clear tool descriptions">
+    Help the LLM understand when to use each tool by providing detailed descriptions:
+    
+    ```typescript
+    description: "Execute a SPARQL query against the knowledge base. "
+      + "Use SELECT for finding data, ASK for yes/no questions, "
+      + "INSERT for adding data, and DELETE for removing data."
+    ```
+  </Accordion>
+
+  <Accordion title="Handle errors gracefully">
+    Wrap SDK calls in try-catch blocks and return meaningful error messages:
+    
+    ```typescript
+    func: async ({ query }) => {
+      try {
+        return await sdk.worlds.sparql(worldId, query);
+      } catch (error) {
+        return `SPARQL Error: ${error.message}. Please check your query syntax.`;
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Limit query complexity">
+    For production use, consider validating SPARQL queries to prevent expensive operations:
+    
+    ```typescript
+    func: async ({ query }) => {
+      if (query.includes("OPTIONAL") && query.includes("FILTER")) {
+        return "Query too complex. Please simplify.";
+      }
+      // Execute query
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Use retriever for RAG patterns">
+    For question-answering, use the retriever pattern to fetch relevant context before generating answers.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Vercel AI SDK" icon="robot" href="/integrations/vercel-ai-sdk">
+    Use the official Worlds AI SDK with Vercel AI SDK
+  </Card>
+  <Card title="Custom Integrations" icon="code" href="/integrations/custom">
+    Build custom integrations using the REST API
+  </Card>
+  <Card title="SPARQL Guide" icon="database" href="/guides/sparql">
+    Learn SPARQL for building better queries
+  </Card>
+  <Card title="SDK Reference" icon="book" href="/sdk/installation">
+    Explore the Worlds SDK documentation
+  </Card>
+</CardGroup>

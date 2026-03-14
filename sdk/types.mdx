@@ -1,0 +1,474 @@
+---
+title: TypeScript Types
+description: Complete reference for all TypeScript types and interfaces in the Worlds SDK
+---
+
+The Worlds SDK provides comprehensive TypeScript types for all API operations.
+
+## Core Types
+
+### World
+
+Represents a knowledge graph world.
+
+```typescript
+interface World {
+  id: string;
+  slug: string;
+  label: string;
+  description: string | null;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt: number | null;
+}
+```
+
+<ResponseField name="id" type="string">
+  Unique identifier for the world
+</ResponseField>
+
+<ResponseField name="slug" type="string">
+  URL-friendly identifier
+</ResponseField>
+
+<ResponseField name="label" type="string">
+  Human-readable name
+</ResponseField>
+
+<ResponseField name="description" type="string | null">
+  Optional description of the world
+</ResponseField>
+
+<ResponseField name="createdAt" type="number">
+  Unix timestamp (milliseconds) when the world was created
+</ResponseField>
+
+<ResponseField name="updatedAt" type="number">
+  Unix timestamp (milliseconds) when the world was last updated
+</ResponseField>
+
+<ResponseField name="deletedAt" type="number | null">
+  Unix timestamp (milliseconds) when the world was deleted, or null if active
+</ResponseField>
+
+---
+
+### CreateWorldParams
+
+Parameters for creating a new world.
+
+```typescript
+interface CreateWorldParams {
+  slug: string;
+  label: string;
+  description?: string | null;
+}
+```
+
+<ParamField path="slug" type="string" required>
+  URL-friendly identifier (must be unique)
+</ParamField>
+
+<ParamField path="label" type="string" required>
+  Human-readable name
+</ParamField>
+
+<ParamField path="description" type="string | null" optional>
+  Optional description
+</ParamField>
+
+---
+
+### UpdateWorldParams
+
+Parameters for updating a world.
+
+```typescript
+interface UpdateWorldParams {
+  slug?: string;
+  label?: string;
+  description?: string | null;
+}
+```
+
+<ParamField path="slug" type="string" optional>
+  Updated URL-friendly identifier
+</ParamField>
+
+<ParamField path="label" type="string" optional>
+  Updated human-readable name
+</ParamField>
+
+<ParamField path="description" type="string | null" optional>
+  Updated description
+</ParamField>
+
+---
+
+### TripleSearchResult
+
+Represents a search result from the triple search service.
+
+```typescript
+interface TripleSearchResult {
+  subject: string;
+  predicate: string;
+  object: string;
+  vecRank: number | null;
+  ftsRank: number | null;
+  score: number;
+  worldId?: string;
+}
+```
+
+<ResponseField name="subject" type="string">
+  The subject IRI of the triple
+</ResponseField>
+
+<ResponseField name="predicate" type="string">
+  The predicate IRI of the triple
+</ResponseField>
+
+<ResponseField name="object" type="string">
+  The object value (IRI or literal) of the triple
+</ResponseField>
+
+<ResponseField name="vecRank" type="number | null">
+  Vector search ranking (if applicable)
+</ResponseField>
+
+<ResponseField name="ftsRank" type="number | null">
+  Full-text search ranking (if applicable)
+</ResponseField>
+
+<ResponseField name="score" type="number">
+  Combined relevance score
+</ResponseField>
+
+<ResponseField name="worldId" type="string" optional>
+  The world ID this result belongs to
+</ResponseField>
+
+---
+
+### Log
+
+Represents a log entry in a world.
+
+```typescript
+interface Log {
+  id: string;
+  worldId: string;
+  timestamp: number;
+  level: "info" | "warn" | "error" | "debug";
+  message: string;
+  metadata: Record<string, unknown> | null;
+}
+```
+
+<ResponseField name="id" type="string">
+  Unique identifier for the log entry
+</ResponseField>
+
+<ResponseField name="worldId" type="string">
+  The world this log belongs to
+</ResponseField>
+
+<ResponseField name="timestamp" type="number">
+  Unix timestamp (milliseconds) when the log was created
+</ResponseField>
+
+<ResponseField name="level" type="'info' | 'warn' | 'error' | 'debug'">
+  Log severity level
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Log message
+</ResponseField>
+
+<ResponseField name="metadata" type="Record<string, unknown> | null">
+  Additional structured metadata
+</ResponseField>
+
+---
+
+## SPARQL Types
+
+### ExecuteSparqlOutput
+
+The result of a SPARQL query or update.
+
+```typescript
+type ExecuteSparqlOutput =
+  | SparqlSelectResults
+  | SparqlAskResults
+  | SparqlQuadsResults
+  | null;
+```
+
+- `SparqlSelectResults` - For SELECT queries
+- `SparqlAskResults` - For ASK queries
+- `SparqlQuadsResults` - For CONSTRUCT/DESCRIBE queries
+- `null` - For UPDATE operations (INSERT, DELETE)
+
+---
+
+### SparqlSelectResults
+
+Results from a SPARQL SELECT query.
+
+```typescript
+interface SparqlSelectResults {
+  head: {
+    vars: string[];
+    link: string[] | null;
+  };
+  results: {
+    bindings: SparqlBinding[];
+  };
+}
+```
+
+<ResponseField name="head.vars" type="string[]">
+  Variable names in the SELECT clause
+</ResponseField>
+
+<ResponseField name="results.bindings" type="SparqlBinding[]">
+  Array of result bindings
+</ResponseField>
+
+**Example:**
+
+```typescript
+const result = await sdk.worlds.sparql(worldId, "SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 5");
+
+if (result && 'results' in result && 'bindings' in result.results) {
+  console.log("Variables:", result.head.vars); // ["s", "p", "o"]
+  
+  for (const binding of result.results.bindings) {
+    console.log(binding.s.value, binding.p.value, binding.o.value);
+  }
+}
+```
+
+---
+
+### SparqlAskResults
+
+Results from a SPARQL ASK query.
+
+```typescript
+interface SparqlAskResults {
+  head: {
+    link: string[] | null;
+  };
+  boolean: boolean;
+}
+```
+
+<ResponseField name="boolean" type="boolean">
+  Whether the query pattern exists in the graph
+</ResponseField>
+
+**Example:**
+
+```typescript
+const result = await sdk.worlds.sparql(worldId, "ASK { ?s a <http://schema.org/Person> }");
+
+if (result && 'boolean' in result) {
+  console.log("Has people:", result.boolean);
+}
+```
+
+---
+
+### SparqlQuadsResults
+
+Results from SPARQL CONSTRUCT or DESCRIBE queries.
+
+```typescript
+interface SparqlQuadsResults {
+  head: {
+    link: string[] | null;
+  };
+  results: {
+    quads: SparqlQuad[];
+  };
+}
+```
+
+<ResponseField name="results.quads" type="SparqlQuad[]">
+  Array of RDF quads
+</ResponseField>
+
+<Note>
+  This is a non-standard extension to SPARQL 1.1 JSON format, providing a consistent JSON representation for graph queries.
+</Note>
+
+---
+
+### SparqlBinding
+
+A single result binding from a SELECT query.
+
+```typescript
+type SparqlBinding = Record<string, SparqlValue>;
+```
+
+Each key corresponds to a variable name from the SELECT clause, and the value is a `SparqlValue`.
+
+---
+
+### SparqlValue
+
+Represents a value in a SPARQL result. Supports SPARQL 1.1 types and SPARQL 1.2 (RDF-star) triple terms.
+
+```typescript
+type SparqlValue =
+  | {
+      type: "uri";
+      value: string;
+    }
+  | {
+      type: "bnode";
+      value: string;
+    }
+  | {
+      type: "literal";
+      value: string;
+      "xml:lang"?: string;
+      datatype?: string;
+    }
+  | {
+      type: "triple";
+      value: {
+        subject: SparqlValue;
+        predicate: SparqlValue;
+        object: SparqlValue;
+      };
+    };
+```
+
+**Example usage:**
+
+```typescript
+const binding: SparqlBinding = {
+  name: {
+    type: "literal",
+    value: "Alice",
+    "xml:lang": "en"
+  },
+  person: {
+    type: "uri",
+    value: "http://example.org/person/1"
+  }
+};
+```
+
+---
+
+### SparqlQuad
+
+Represents a single RDF quad from CONSTRUCT/DESCRIBE queries.
+
+```typescript
+interface SparqlQuad {
+  subject: {
+    type: "uri" | "bnode";
+    value: string;
+  };
+  predicate: {
+    type: "uri";
+    value: string;
+  };
+  object: SparqlValue;
+  graph: {
+    type: "default" | "uri";
+    value: string;
+  };
+}
+```
+
+---
+
+## RDF Types
+
+### RdfFormat
+
+Supported RDF serialization formats.
+
+```typescript
+type RdfFormat = "turtle" | "n-quads" | "n-triples" | "n3";
+```
+
+- `"turtle"` - Turtle (Terse RDF Triple Language)
+- `"n-quads"` - N-Quads (includes named graphs)
+- `"n-triples"` - N-Triples (simple triple format)
+- `"n3"` - Notation3
+
+---
+
+### Source
+
+Represents a data source.
+
+```typescript
+interface Source {
+  id: string;
+  write?: boolean;
+  schema?: boolean;
+}
+```
+
+<ResponseField name="id" type="string">
+  The source identifier
+</ResponseField>
+
+<ResponseField name="write" type="boolean" optional>
+  Whether the source allows write operations
+</ResponseField>
+
+<ResponseField name="schema" type="boolean" optional>
+  Whether the source contains schema information
+</ResponseField>
+
+---
+
+## Using Zod Schemas
+
+All types have corresponding Zod schemas for runtime validation:
+
+```typescript
+import { 
+  worldSchema, 
+  createWorldParamsSchema,
+  executeSparqlOutputSchema 
+} from "@wazoo/worlds-sdk";
+
+// Validate data at runtime
+const validWorld = worldSchema.parse(data);
+```
+
+Available schemas:
+- `worldSchema`
+- `createWorldParamsSchema`
+- `updateWorldParamsSchema`
+- `tripleSearchResultSchema`
+- `executeSparqlOutputSchema`
+- `sparqlSelectResultsSchema`
+- `sparqlAskResultsSchema`
+- `sparqlQuadsResultsSchema`
+- `rdfFormatSchema`
+- `logSchema`
+- `sourceSchema`
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Worlds Client" icon="globe" href="/sdk/worlds-client">
+    Explore the Worlds client API methods
+  </Card>
+  <Card title="AI SDK Overview" icon="brain" href="/ai-sdk/overview">
+    Learn about the AI SDK for intelligent graph operations
+  </Card>
+</CardGroup>

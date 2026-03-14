@@ -1,0 +1,174 @@
+---
+title: 'Configuration'
+description: 'Configure the Worlds CLI with environment variables'
+---
+
+## Overview
+
+The Worlds CLI supports two operational modes configured through environment variables:
+
+- **Remote Mode**: Connect to the Worlds API hosted on a remote server
+- **Local Mode**: Run an in-process server with a local database
+
+## Remote Mode
+
+Use Remote Mode to connect to the Worlds API on a remote server.
+
+### Environment Variables
+
+<ParamField path="WORLDS_API_KEY" type="string" required>
+  Your Worlds API key for authentication
+</ParamField>
+
+<ParamField path="WORLDS_BASE_URL" type="string" required>
+  The base URL of the Worlds API server
+</ParamField>
+
+### Example Configuration
+
+```bash
+export WORLDS_API_KEY="your-api-key-here"
+export WORLDS_BASE_URL="https://api.wazoo.dev"
+```
+
+<Tip>
+You can add these environment variables to your shell configuration file (e.g., `.bashrc`, `.zshrc`) to persist them across sessions.
+</Tip>
+
+### Usage
+
+Once configured, all CLI commands will communicate with the remote API:
+
+```bash
+worlds create --label "My World"
+worlds list
+```
+
+## Local Mode
+
+Use Local Mode to run an in-process server with a local database. This is useful for development and testing.
+
+### Environment Variables
+
+<ParamField path="LIBSQL_URL" type="string" required>
+  Database connection URL for the local instance
+</ParamField>
+
+### Example Configuration
+
+```bash
+export LIBSQL_URL="file:worlds.db"
+```
+
+This creates a local SQLite database file named `worlds.db` in the current directory.
+
+### Usage
+
+With Local Mode configured, the CLI operates on your local database:
+
+```bash
+worlds create --label "Local World"
+worlds list
+```
+
+## AI Chat Configuration
+
+The `worlds chat` command requires additional configuration for AI functionality.
+
+### Environment Variables
+
+<ParamField path="OPENROUTER_API_KEY" type="string" required>
+  Your OpenRouter API key for AI chat functionality
+</ParamField>
+
+<ParamField path="OPENROUTER_MODEL" type="string" default="google/gemini-2.0-flash-001">
+  The AI model to use for chat interactions
+</ParamField>
+
+### Example Configuration
+
+```bash
+export OPENROUTER_API_KEY="your-openrouter-api-key"
+export OPENROUTER_MODEL="google/gemini-2.0-flash-001"
+```
+
+<Info>
+Get your OpenRouter API key from [openrouter.ai](https://openrouter.ai/). The default model is `google/gemini-2.0-flash-001`, but you can use any model supported by OpenRouter.
+</Info>
+
+### Available Models
+
+You can use any model available on OpenRouter. Popular options include:
+
+- `google/gemini-2.0-flash-001` (default, fast and efficient)
+- `anthropic/claude-3-opus`
+- `openai/gpt-4-turbo`
+- `meta-llama/llama-3-70b-instruct`
+
+Refer to the [OpenRouter documentation](https://openrouter.ai/docs) for a complete list of available models.
+
+## Configuration File
+
+The Worlds CLI currently uses environment variables for configuration. There is no separate configuration file.
+
+<Tip>
+Create a `.env` file in your project directory and use a tool like `direnv` to automatically load environment variables when you enter the directory.
+</Tip>
+
+### Example `.env` File
+
+```bash
+# Remote Mode
+WORLDS_API_KEY=your-api-key-here
+WORLDS_BASE_URL=https://api.wazoo.dev
+
+# OR Local Mode
+# LIBSQL_URL=file:worlds.db
+
+# AI Chat (optional)
+OPENROUTER_API_KEY=your-openrouter-api-key
+OPENROUTER_MODEL=google/gemini-2.0-flash-001
+```
+
+## Troubleshooting
+
+### Missing API Key
+
+If you see an error about a missing API key:
+
+```
+WORLDS_API_KEY is not set.
+```
+
+Make sure you've set the `WORLDS_API_KEY` environment variable:
+
+```bash
+export WORLDS_API_KEY="your-api-key-here"
+```
+
+### Connection Errors
+
+If you encounter connection errors, verify:
+
+1. The `WORLDS_BASE_URL` is correct and accessible
+2. Your API key is valid
+3. You have network connectivity
+
+### Database Errors (Local Mode)
+
+If you encounter database errors in Local Mode:
+
+1. Verify the `LIBSQL_URL` path is writable
+2. Ensure no other process is using the database file
+3. Check file permissions on the database directory
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Commands Reference" icon="terminal" href="/cli/commands">
+    Explore all available CLI commands
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/authentication">
+    Learn about the Worlds API
+  </Card>
+</CardGroup>

@@ -1,0 +1,120 @@
+---
+title: Authentication
+description: Authenticate API requests with Bearer tokens
+---
+
+All API requests to the Worlds Platform require authentication using a Bearer token in the `Authorization` header.
+
+## Authentication Method
+
+The API uses Bearer token authentication. Include your API key in the `Authorization` header of each request:
+
+```bash
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Getting an API Key
+
+API keys are configured at the server level. To set up authentication:
+
+1. Configure the `API_KEY` environment variable when starting the Worlds server
+2. If no API key is configured, the server operates in development mode (no authentication required)
+3. Keep your API key secure and never commit it to version control
+
+<Warning>
+API keys provide full admin access to your Worlds instance. Treat them like passwords and rotate them regularly.
+</Warning>
+
+## Authentication Header Format
+
+The authentication header must follow this format:
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token in the format: `Bearer YOUR_API_KEY`
+</ParamField>
+
+## Example Requests
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-worlds-instance.com/worlds \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```javascript JavaScript
+const response = await fetch('https://your-worlds-instance.com/worlds', {
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY'
+  }
+});
+```
+
+```python Python
+import requests
+
+headers = {
+    'Authorization': 'Bearer YOUR_API_KEY'
+}
+
+response = requests.get(
+    'https://your-worlds-instance.com/worlds',
+    headers=headers
+)
+```
+
+</CodeGroup>
+
+## Authorization Behavior
+
+The authentication middleware (`authorizeRequest`) validates your Bearer token:
+
+- **Valid API key**: Request proceeds with `admin: true` authorization
+- **Invalid or missing API key**: Request is rejected with `401 Unauthorized` or `403 Forbidden`
+- **No API key configured**: All requests are allowed (development mode only)
+
+<Note>
+In production environments, always configure an API key to secure your Worlds instance.
+</Note>
+
+## Error Responses
+
+If authentication fails, you'll receive one of these responses:
+
+<ResponseField name="401 Unauthorized" type="error">
+  Missing or invalid `Authorization` header
+</ResponseField>
+
+<ResponseField name="403 Forbidden" type="error">
+  Valid authentication but insufficient permissions for the requested operation
+</ResponseField>
+
+### Example Error Response
+
+```bash
+curl https://your-worlds-instance.com/worlds \
+  -H "Authorization: Bearer invalid_key"
+```
+
+```json
+{
+  "error": "Unauthorized",
+  "message": "Invalid or missing authentication credentials"
+}
+```
+
+## Using the SDK
+
+The official TypeScript SDK handles authentication automatically:
+
+```typescript
+import { WorldsSdk } from '@wazoo/worlds-sdk';
+
+const sdk = new WorldsSdk({
+  baseUrl: 'https://your-worlds-instance.com',
+  apiKey: 'YOUR_API_KEY'
+});
+
+// All requests automatically include the Authorization header
+const worlds = await sdk.worlds.list();
+```

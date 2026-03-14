@@ -1,0 +1,136 @@
+---
+title: Configuration
+description: Configure the Worlds SDK with authentication and custom options
+---
+
+The Worlds SDK is configured using the `WorldsSdkOptions` interface when creating a new SDK instance.
+
+## WorldsSdkOptions
+
+The SDK requires the following configuration options:
+
+<ParamField path="baseUrl" type="string" required>
+  The base URL of the Worlds API. Should not include the `/v1` suffix.
+  
+  **Example**: `https://api.worlds.example.com`
+</ParamField>
+
+<ParamField path="apiKey" type="string" required>
+  Your API key for authenticating with the Worlds API. You can obtain an API key from your Worlds account dashboard.
+</ParamField>
+
+<ParamField path="fetch" type="typeof fetch" default="globalThis.fetch">
+  Optional custom fetch implementation. Use this to provide a custom fetch function for network requests.
+  
+  This is useful for:
+  - Adding custom headers or middleware
+  - Using a different HTTP client
+  - Mocking requests in tests
+  
+  Defaults to the global `fetch` function.
+</ParamField>
+
+## Basic Configuration
+
+The simplest configuration requires only a base URL and API key:
+
+```typescript
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+
+const sdk = new WorldsSdk({
+  baseUrl: "https://api.worlds.example.com",
+  apiKey: "your-api-key-here"
+});
+```
+
+## Environment Variables
+
+It's recommended to store your API credentials in environment variables:
+
+```typescript
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+
+const sdk = new WorldsSdk({
+  baseUrl: process.env.WORLDS_BASE_URL!,
+  apiKey: process.env.WORLDS_API_KEY!
+});
+```
+
+<Tip>
+  Never commit API keys to version control. Use environment variables or a secrets manager.
+</Tip>
+
+## Custom Fetch Function
+
+You can provide a custom fetch function to add custom behavior:
+
+```typescript
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+
+const customFetch: typeof fetch = async (input, init) => {
+  // Add custom headers
+  const headers = new Headers(init?.headers);
+  headers.set("X-Custom-Header", "value");
+  
+  // Log requests
+  console.log("Making request to:", input);
+  
+  // Call the original fetch
+  return fetch(input, { ...init, headers });
+};
+
+const sdk = new WorldsSdk({
+  baseUrl: "https://api.worlds.example.com",
+  apiKey: "your-api-key-here",
+  fetch: customFetch
+});
+```
+
+## Using with Deno
+
+The SDK works seamlessly with Deno:
+
+```typescript
+import { WorldsSdk } from "jsr:@wazoo/worlds-sdk";
+
+const sdk = new WorldsSdk({
+  baseUrl: Deno.env.get("WORLDS_BASE_URL")!,
+  apiKey: Deno.env.get("WORLDS_API_KEY")!
+});
+```
+
+## Type Definition
+
+The full TypeScript interface for `WorldsSdkOptions`:
+
+```typescript
+interface WorldsSdkOptions {
+  /**
+   * baseUrl is the base URL of the Worlds API. It should not include the /v1 suffix.
+   */
+  baseUrl: string;
+
+  /**
+   * apiKey is the API key for the Worlds API.
+   */
+  apiKey: string;
+
+  /**
+   * fetch fetches a resource from the network. It returns a `Promise` that
+   * resolves to the `Response` to that `Request`, whether it is successful
+   * or not.
+   */
+  fetch?: typeof globalThis.fetch;
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Worlds Client" icon="globe" href="/sdk/worlds-client">
+    Learn about the Worlds client methods
+  </Card>
+  <Card title="TypeScript Types" icon="code" href="/sdk/types">
+    Explore all available TypeScript types
+  </Card>
+</CardGroup>

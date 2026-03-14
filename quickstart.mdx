@@ -1,80 +1,267 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get started with Worlds Platform in 5 minutes
 ---
 
-## Get started in three steps
+Get up and running with Worlds Platform in just a few minutes. This guide will walk you through installing the SDK, setting up your first world, and running your first SPARQL query.
 
-Get your documentation site running locally and make your first customization.
+## Choose Your Setup
 
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
+Worlds Platform can run in two modes:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Local Server" icon="laptop">
+    Run the Worlds Platform server locally on your machine. Perfect for development and testing.
+  </Card>
+  <Card title="Cloud" icon="cloud">
+    Connect to a hosted Worlds Platform instance. Production-ready and scalable.
+  </Card>
 </CardGroup>
 
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+## Installation
+
+<Steps>
+  <Step title="Install the SDK">
+    Choose your preferred package manager:
+
+    <CodeGroup>
+      ```bash Deno
+      deno add jsr:@wazoo/worlds-sdk
+      ```
+
+      ```bash npm
+      npx jsr add @wazoo/worlds-sdk
+      ```
+
+      ```bash pnpm
+      pnpm dlx jsr add @wazoo/worlds-sdk
+      ```
+
+      ```bash Yarn
+      yarn dlx jsr add @wazoo/worlds-sdk
+      ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Set up a local server (Optional)">
+    If you want to run Worlds Platform locally, install the server:
+
+    ```bash
+    deno install -A --name worlds-server jsr:@wazoo/worlds-server
+    ```
+
+    Create a `.env` file with required configuration:
+
+    ```bash .env
+    LIBSQL_URL=file:./worlds.db
+    GOOGLE_API_KEY=your-google-api-key
+    WORLDS_API_KEY=your-api-key
+    ```
+
+    Start the server:
+
+    ```bash
+    deno task start
+    ```
+
+    The server will start on `http://localhost:8000` by default.
+
+    <Note>
+      For cloud usage, skip this step and use the hosted API endpoint at `https://api.wazoo.dev`.
+    </Note>
+  </Step>
+</Steps>
+
+## Your First World
+
+Let's create a knowledge base (called a "world"), add some knowledge, and query it.
+
+<Steps>
+  <Step title="Initialize the SDK">
+    Create a new file and initialize the Worlds SDK client:
+
+    <CodeGroup>
+      ```typescript Local Server
+      import { WorldsSdk } from "@wazoo/worlds-sdk";
+
+      const sdk = new WorldsSdk({
+        baseUrl: "http://localhost:8000",
+        apiKey: "your-api-key",
+      });
+      ```
+
+      ```typescript Cloud
+      import { WorldsSdk } from "@wazoo/worlds-sdk";
+
+      const sdk = new WorldsSdk({
+        baseUrl: "https://api.wazoo.dev",
+        apiKey: "your-api-key",
+      });
+      ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Create a world">
+    Create your first knowledge base:
+
+    ```typescript
+    const world = await sdk.worlds.create({
+      slug: "my-first-world",
+      label: "My First World",
+      description: "A knowledge base for learning Worlds Platform",
+    });
+
+    console.log("Created world:", world.id);
+    ```
+
+    <Tip>
+      The `slug` is a URL-friendly identifier, while `label` is a human-readable name.
+    </Tip>
+  </Step>
+
+  <Step title="Add knowledge (triples)">
+    Add some knowledge to your world using SPARQL INSERT:
+
+    ```typescript
+    const worldId = world.id;
+
+    // Add triples about people and their relationships
+    await sdk.worlds.sparql(
+      worldId,
+      `
+      INSERT DATA {
+        <http://example.com/ethan> <http://schema.org/relatedTo> <http://example.com/gregory> .
+        <http://example.com/gregory> <http://schema.org/givenName> "Gregory" .
+        <http://example.com/gregory> <http://schema.org/jobTitle> "Engineer" .
+        <http://example.com/ethan> <http://schema.org/givenName> "Ethan" .
+      }
+      `
+    );
+
+    console.log("Knowledge added successfully!");
+    ```
+
+    <Note>
+      Knowledge in Worlds Platform is stored as RDF triples: subject-predicate-object statements.
+      Each triple represents a fact about your data.
+    </Note>
+  </Step>
+
+  <Step title="Query with SPARQL">
+    Now let's query the knowledge we just added:
+
+    ```typescript
+    // Find all people related to Ethan
+    const result = await sdk.worlds.sparql(
+      worldId,
+      `
+      SELECT ?name ?title WHERE {
+        <http://example.com/ethan> <http://schema.org/relatedTo> ?person .
+        ?person <http://schema.org/givenName> ?name .
+        OPTIONAL { ?person <http://schema.org/jobTitle> ?title . }
+      }
+      `
+    );
+
+    console.log("Query results:", JSON.stringify(result, null, 2));
+    ```
+
+    The result will look like:
+
+    ```json
+    {
+      "head": {
+        "vars": ["name", "title"]
+      },
+      "results": {
+        "bindings": [
+          {
+            "name": {
+              "type": "literal",
+              "value": "Gregory"
+            },
+            "title": {
+              "type": "literal",
+              "value": "Engineer"
+            }
+          }
+        ]
+      }
+    }
+    ```
+  </Step>
+</Steps>
+
+## Complete Example
+
+Here's a complete working example that puts it all together:
+
+```typescript example.ts
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+
+// Initialize the client
+const sdk = new WorldsSdk({
+  baseUrl: "http://localhost:8000",
+  apiKey: "your-api-key",
+});
+
+async function main() {
+  // Create a world
+  const world = await sdk.worlds.create({
+    slug: "my-knowledge-base",
+    label: "My Knowledge Base",
+  });
+
+  console.log("Created world:", world.id);
+
+  // Add some knowledge
+  await sdk.worlds.sparql(
+    world.id,
+    `
+    INSERT DATA {
+      <http://example.com/ethan> <http://schema.org/relatedTo> <http://example.com/gregory> .
+      <http://example.com/gregory> <http://schema.org/givenName> "Gregory" .
+      <http://example.com/ethan> <http://schema.org/givenName> "Ethan" .
+    }
+    `
+  );
+
+  // Query the knowledge
+  const result = await sdk.worlds.sparql(
+    world.id,
+    `
+    SELECT ?name WHERE {
+      <http://example.com/ethan> <http://schema.org/relatedTo> ?person .
+      ?person <http://schema.org/givenName> ?name .
+    }
+    `
+  );
+
+  console.log("Query results:", result);
+}
+
+main();
+```
+
+Run it with:
+
+```bash
+deno run -A example.ts
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Core Concepts" icon="book" href="/concepts">
+    Learn about worlds, SPARQL, and knowledge graphs
+  </Card>
+  <Card title="SDK Reference" icon="code" href="/sdk/installation">
+    Explore the full SDK API documentation
+  </Card>
+  <Card title="CLI Tool" icon="terminal" href="/cli/installation">
+    Manage worlds from your terminal
+  </Card>
+  <Card title="AI Integration" icon="robot" href="/ai-sdk">
+    Add Worlds to your AI agents with tool-calling
+  </Card>
+</CardGroup>

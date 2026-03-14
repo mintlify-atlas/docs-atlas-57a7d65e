@@ -1,0 +1,381 @@
+---
+title: Import/Export Endpoints
+description: Import and export RDF data in multiple formats
+---
+
+The import and export endpoints enable you to upload RDF data into a world and download it in various serialization formats. All standard RDF formats are supported.
+
+## Import RDF Data
+
+<Badge variant="warning">POST</Badge> `/worlds/:id/import`
+
+Import RDF data into a world. The data is parsed, validated, and added to the world's knowledge graph.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  World ID (ULID) or slug to import data into
+</ParamField>
+
+### Request Headers
+
+<ParamField header="Content-Type" type="string" required>
+  RDF serialization format:
+  - `text/turtle` - Turtle format
+  - `application/n-triples` - N-Triples format
+  - `text/n3` - Notation3 format
+  - `application/n-quads` - N-Quads format (default)
+</ParamField>
+
+### Request Body
+
+Raw RDF data in the format specified by the `Content-Type` header.
+
+### Response
+
+Returns `204 No Content` on successful import. The import operation:
+
+1. Parses the RDF data according to the specified format
+2. Validates all triples/quads
+3. Updates the search index with embeddings
+4. Stores the data in the world's database
+5. Logs the import operation
+
+### Examples
+
+#### Import Turtle Data
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/import \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: text/turtle" \
+  -d '@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+      @prefix schema: <http://schema.org/> .
+      
+      <http://example.org/alice> a foaf:Person ;
+        foaf:name "Alice Johnson" ;
+        schema:email "alice@example.com" ;
+        foaf:knows <http://example.org/bob> .
+      
+      <http://example.org/bob> a foaf:Person ;
+        foaf:name "Bob Smith" .'
+```
+
+</CodeGroup>
+
+#### Import N-Triples from File
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/import \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/n-triples" \
+  --data-binary @data.nt
+```
+
+</CodeGroup>
+
+#### Import N-Quads
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/import \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/n-quads" \
+  --data-binary @graph.nq
+```
+
+</CodeGroup>
+
+#### Using the SDK
+
+```typescript
+import { WorldsSdk } from '@wazoo/worlds-sdk';
+
+const sdk = new WorldsSdk({
+  baseUrl: 'https://your-worlds-instance.com',
+  apiKey: 'YOUR_API_KEY'
+});
+
+const turtleData = `
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+
+<http://example.org/alice> a foaf:Person ;
+  foaf:name "Alice Johnson" .
+`;
+
+await sdk.worlds.import(
+  '01HQZX9Y2ABCDEFGH123456789',
+  turtleData,
+  { format: 'turtle' }
+);
+```
+
+---
+
+## Export RDF Data
+
+<Badge variant="success">GET</Badge> `/worlds/:id/export`
+
+Export a world's RDF data in the requested format.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  World ID (ULID) or slug to export
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="format" type="string" optional>
+  RDF serialization format:
+  - `turtle` - Turtle format (default)
+  - `n-triples` - N-Triples format
+  - `n3` - Notation3 format
+  - `n-quads` - N-Quads format
+</ParamField>
+
+### Content Negotiation
+
+If no `format` parameter is provided, the server uses HTTP content negotiation based on the `Accept` header:
+
+- `text/turtle` → Turtle
+- `application/n-triples` → N-Triples
+- `text/n3` → Notation3
+- `application/n-quads` → N-Quads
+
+### Response Headers
+
+<ResponseField name="Content-Type" type="string">
+  The RDF format's MIME type:
+  - `text/turtle`
+  - `application/n-triples`
+  - `text/n3`
+  - `application/n-quads`
+</ResponseField>
+
+<ResponseField name="ETag" type="string">
+  Entity tag for cache validation
+</ResponseField>
+
+### Response Body
+
+Raw RDF data in the requested format.
+
+### Examples
+
+#### Export as Turtle (Default)
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/export \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -o world-data.ttl
+```
+
+```turtle Response
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix schema: <http://schema.org/> .
+
+<http://example.org/alice> a foaf:Person ;
+  foaf:name "Alice Johnson" ;
+  schema:email "alice@example.com" ;
+  foaf:knows <http://example.org/bob> .
+
+<http://example.org/bob> a foaf:Person ;
+  foaf:name "Bob Smith" .
+```
+
+</CodeGroup>
+
+#### Export as N-Triples
+
+<CodeGroup>
+
+```bash cURL
+curl "https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/export?format=n-triples" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -o world-data.nt
+```
+
+```ntriples Response
+<http://example.org/alice> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Person> .
+<http://example.org/alice> <http://xmlns.com/foaf/0.1/name> "Alice Johnson" .
+<http://example.org/alice> <http://schema.org/email> "alice@example.com" .
+<http://example.org/alice> <http://xmlns.com/foaf/0.1/knows> <http://example.org/bob> .
+<http://example.org/bob> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://xmlns.com/foaf/0.1/Person> .
+<http://example.org/bob> <http://xmlns.com/foaf/0.1/name> "Bob Smith" .
+```
+
+</CodeGroup>
+
+#### Export as N-Quads
+
+<CodeGroup>
+
+```bash cURL
+curl "https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/export?format=n-quads" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -o world-data.nq
+```
+
+</CodeGroup>
+
+#### Using Content Negotiation
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/export \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Accept: application/n-triples" \
+  -o world-data.nt
+```
+
+</CodeGroup>
+
+#### Using the SDK
+
+```typescript
+import { WorldsSdk } from '@wazoo/worlds-sdk';
+
+const sdk = new WorldsSdk({
+  baseUrl: 'https://your-worlds-instance.com',
+  apiKey: 'YOUR_API_KEY'
+});
+
+// Export as Turtle
+const turtleBuffer = await sdk.worlds.export(
+  '01HQZX9Y2ABCDEFGH123456789',
+  { format: 'turtle' }
+);
+const turtleText = new TextDecoder().decode(turtleBuffer);
+
+// Export as N-Quads
+const nquadsBuffer = await sdk.worlds.export(
+  '01HQZX9Y2ABCDEFGH123456789',
+  { format: 'n-quads' }
+);
+```
+
+---
+
+## Supported RDF Formats
+
+<table>
+  <thead>
+    <tr>
+      <th>Format</th>
+      <th>Format Parameter</th>
+      <th>Content-Type</th>
+      <th>File Extension</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Turtle</td>
+      <td><code>turtle</code></td>
+      <td><code>text/turtle</code></td>
+      <td>.ttl</td>
+    </tr>
+    <tr>
+      <td>N-Triples</td>
+      <td><code>n-triples</code></td>
+      <td><code>application/n-triples</code></td>
+      <td>.nt</td>
+    </tr>
+    <tr>
+      <td>Notation3</td>
+      <td><code>n3</code></td>
+      <td><code>text/n3</code></td>
+      <td>.n3</td>
+    </tr>
+    <tr>
+      <td>N-Quads</td>
+      <td><code>n-quads</code></td>
+      <td><code>application/n-quads</code></td>
+      <td>.nq</td>
+    </tr>
+  </tbody>
+</table>
+
+## Import Behavior
+
+<Note>
+Importing data **adds** triples to the world. It does not replace existing data. To replace all data:
+
+1. Create a new world
+2. Import your data
+3. Delete the old world
+</Note>
+
+The import process:
+
+1. **Parses** the RDF data using the appropriate parser
+2. **Validates** that all triples are well-formed
+3. **Generates embeddings** for semantic search indexing
+4. **Stores** the data in N-Quads format internally
+5. **Updates** the world's `updatedAt` timestamp
+6. **Logs** the operation with triple count metadata
+
+## Error Responses
+
+<ResponseField name="400 Bad Request" type="error">
+  Invalid RDF data or unsupported format
+  - Syntax errors in the RDF data
+  - Unsupported format parameter
+  - Invalid Content-Type header
+</ResponseField>
+
+<ResponseField name="401 Unauthorized" type="error">
+  Missing or invalid authentication
+</ResponseField>
+
+<ResponseField name="403 Forbidden" type="error">
+  Insufficient permissions
+</ResponseField>
+
+<ResponseField name="404 Not Found" type="error">
+  World does not exist
+</ResponseField>
+
+### Example Error Response
+
+```bash
+curl -X POST https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/import \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: text/turtle" \
+  -d 'invalid turtle syntax <<<<'
+```
+
+```json
+{
+  "error": "Bad Request",
+  "message": "Invalid RDF data: Unexpected token at line 1"
+}
+```
+
+## Best Practices
+
+<Note>
+**Performance Tips:**
+
+- For large datasets (>100MB), split into smaller batches
+- Use N-Quads or N-Triples for fastest parsing
+- Import during off-peak hours if possible
+- Monitor the logs endpoint to track import progress
+</Note>
+
+<Warning>
+**Data Quality:**
+
+- Validate your RDF data before importing
+- Use proper URI encoding
+- Include appropriate namespaces and prefixes
+- Test with small samples first
+</Warning>

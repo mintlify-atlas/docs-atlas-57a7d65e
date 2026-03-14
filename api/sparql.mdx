@@ -1,0 +1,320 @@
+---
+title: SPARQL Endpoint
+description: Execute SPARQL queries and updates
+---
+
+The SPARQL endpoint provides full W3C SPARQL 1.1 Protocol compliance for querying and updating RDF data in worlds. It supports SELECT, ASK, CONSTRUCT, DESCRIBE queries, and UPDATE operations.
+
+## Execute SPARQL Query/Update
+
+<Badge variant="info">GET</Badge> <Badge variant="warning">POST</Badge> `/worlds/:id/sparql`
+
+Execute a SPARQL query or update operation against a world.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  World ID (ULID) or slug
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="default-graph-uri" type="string[]" optional>
+  URIs of default graphs to query (can be specified multiple times)
+</ParamField>
+
+<ParamField query="named-graph-uri" type="string[]" optional>
+  URIs of named graphs to query (can be specified multiple times)
+</ParamField>
+
+<ParamField query="query" type="string" optional>
+  SPARQL query string (for GET requests or POST with form encoding)
+</ParamField>
+
+### Request Methods
+
+**GET**: For SPARQL queries only. Include the query in the `query` parameter.
+
+**POST**: For both queries and updates. Supports three content types:
+- `application/sparql-query` - Query in request body
+- `application/sparql-update` - Update in request body
+- `application/x-www-form-urlencoded` - Query/update in form parameter
+
+<Warning>
+SPARQL UPDATE operations are only allowed via POST requests. GET requests with UPDATE queries will be rejected.
+</Warning>
+
+### Request Headers
+
+<ParamField header="Content-Type" type="string" optional>
+  - `application/sparql-query` for SELECT/ASK/CONSTRUCT/DESCRIBE queries
+  - `application/sparql-update` for INSERT/DELETE/LOAD/CLEAR operations
+  - `application/x-www-form-urlencoded` for form-encoded requests
+</ParamField>
+
+<ParamField header="Accept" type="string" optional default="application/sparql-results+json">
+  Preferred response format for query results
+</ParamField>
+
+### Response
+
+**For SELECT queries:**
+
+<ResponseField name="head" type="object">
+  Query metadata
+  <ResponseField name="vars" type="string[]">
+    Variable names in the SELECT clause
+  </ResponseField>
+  <ResponseField name="link" type="string[] | null">
+    Optional related links
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="results" type="object">
+  Query results
+  <ResponseField name="bindings" type="array">
+    Array of solution bindings, each mapping variable names to SPARQL values
+  </ResponseField>
+</ResponseField>
+
+**For ASK queries:**
+
+<ResponseField name="boolean" type="boolean">
+  True if the query pattern matches, false otherwise
+</ResponseField>
+
+**For CONSTRUCT/DESCRIBE queries:**
+
+<ResponseField name="results" type="object">
+  <ResponseField name="quads" type="array">
+    Array of RDF quads with subject, predicate, object, and graph
+  </ResponseField>
+</ResponseField>
+
+**For UPDATE operations:**
+
+Returns `204 No Content` on success with no response body.
+
+### SPARQL Value Types
+
+Values in bindings support these types:
+
+- **URI**: `{ "type": "uri", "value": "http://example.org/resource" }`
+- **Blank Node**: `{ "type": "bnode", "value": "b0" }`
+- **Literal**: `{ "type": "literal", "value": "text", "xml:lang": "en" }`
+- **Typed Literal**: `{ "type": "literal", "value": "42", "datatype": "http://www.w3.org/2001/XMLSchema#integer" }`
+- **Triple (RDF-star)**: `{ "type": "triple", "value": { "subject": {...}, "predicate": {...}, "object": {...} } }`
+
+## Examples
+
+### SELECT Query
+
+<CodeGroup>
+
+```bash cURL (GET)
+curl "https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/sparql?query=SELECT%20*%20WHERE%20%7B%20%3Fs%20%3Fp%20%3Fo%20%7D%20LIMIT%2010" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```bash cURL (POST)
+curl -X POST https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/sparql \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/sparql-query" \
+  -H "Accept: application/sparql-results+json" \
+  -d 'SELECT ?person ?name WHERE {
+    ?person <http://xmlns.com/foaf/0.1/name> ?name .
+  } LIMIT 10'
+```
+
+```json Response
+{
+  "head": {
+    "vars": ["person", "name"],
+    "link": null
+  },
+  "results": {
+    "bindings": [
+      {
+        "person": {
+          "type": "uri",
+          "value": "http://example.org/person/alice"
+        },
+        "name": {
+          "type": "literal",
+          "value": "Alice",
+          "xml:lang": "en"
+        }
+      }
+    ]
+  }
+}
+```
+
+</CodeGroup>
+
+### ASK Query
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/sparql \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/sparql-query" \
+  -d 'ASK WHERE { ?s a <http://schema.org/Person> }'
+```
+
+```json Response
+{
+  "head": {
+    "link": null
+  },
+  "boolean": true
+}
+```
+
+</CodeGroup>
+
+### CONSTRUCT Query
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/sparql \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/sparql-query" \
+  -d 'CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o } LIMIT 5'
+```
+
+```json Response
+{
+  "head": {
+    "link": null
+  },
+  "results": {
+    "quads": [
+      {
+        "subject": {
+          "type": "uri",
+          "value": "http://example.org/alice"
+        },
+        "predicate": {
+          "type": "uri",
+          "value": "http://xmlns.com/foaf/0.1/name"
+        },
+        "object": {
+          "type": "literal",
+          "value": "Alice"
+        },
+        "graph": {
+          "type": "default",
+          "value": ""
+        }
+      }
+    ]
+  }
+}
+```
+
+</CodeGroup>
+
+### INSERT Update
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/sparql \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/sparql-update" \
+  -d 'PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+      INSERT DATA {
+        <http://example.org/bob> foaf:name "Bob" .
+        <http://example.org/bob> a foaf:Person .
+      }'
+```
+
+</CodeGroup>
+
+Returns `204 No Content` on success.
+
+### DELETE Update
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/sparql \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/sparql-update" \
+  -d 'PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+      DELETE WHERE {
+        ?person foaf:name "Bob" .
+      }'
+```
+
+</CodeGroup>
+
+## SPARQL Protocol Compliance
+
+This endpoint implements the [W3C SPARQL 1.1 Protocol](https://www.w3.org/TR/sparql11-protocol/) specification:
+
+- ✅ Query via GET (query parameter)
+- ✅ Query via POST (application/sparql-query)
+- ✅ Update via POST (application/sparql-update)
+- ✅ Form-encoded requests (application/x-www-form-urlencoded)
+- ✅ Dataset parameters (default-graph-uri, named-graph-uri)
+- ✅ Content negotiation for response formats
+- ✅ SPARQL 1.2 (RDF-star) support for triple terms
+
+## Service Description
+
+Sending a GET request without a query parameter returns a SPARQL Service Description in RDF format:
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/sparql \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Accept: text/turtle"
+```
+
+```turtle Response
+@prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+
+<https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/sparql>
+  a sd:Service ;
+  sd:endpoint <https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/sparql> ;
+  sd:supportedLanguage sd:SPARQL11Query, sd:SPARQL11Update, sd:SPARQL12Query, sd:SPARQL12Update ;
+  sd:feature sd:UnionDefaultGraph, sd:DereferencesURIs, sd:TripleTerms ;
+  sd:supportedFormat <http://www.w3.org/ns/formats/SPARQL_Results_JSON>, <http://www.w3.org/ns/formats/Turtle> .
+```
+
+</CodeGroup>
+
+## Error Responses
+
+<ResponseField name="400 Bad Request" type="error">
+  Invalid SPARQL syntax or malformed request
+</ResponseField>
+
+<ResponseField name="401 Unauthorized" type="error">
+  Missing or invalid authentication
+</ResponseField>
+
+<ResponseField name="403 Forbidden" type="error">
+  Insufficient permissions
+</ResponseField>
+
+<ResponseField name="404 Not Found" type="error">
+  World does not exist
+</ResponseField>
+
+<ResponseField name="405 Method Not Allowed" type="error">
+  Unsupported HTTP method (only GET and POST are allowed)
+</ResponseField>
+
+<ResponseField name="415 Unsupported Media Type" type="error">
+  Invalid Content-Type header
+</ResponseField>
+
+<Note>
+All SPARQL operations are logged to the world's log stream for auditing and debugging.
+</Note>

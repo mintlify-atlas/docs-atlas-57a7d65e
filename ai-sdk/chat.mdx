@@ -1,0 +1,370 @@
+---
+title: Chat Integration
+description: Build conversational AI agents that interact with knowledge graphs
+---
+
+The Worlds AI SDK integrates seamlessly with chat models to build conversational agents that can query and modify knowledge graphs.
+
+## Basic Chat Integration
+
+Use the AI tools with any chat model from the Vercel AI SDK:
+
+```typescript
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+import { 
+  createDiscoverSchemaTool,
+  createSearchEntitiesTool,
+  createExecuteSparqlTool 
+} from "@wazoo/worlds-ai-sdk";
+import { generateText } from "ai";
+import { openai } from "@ai-sdk/openai";
+
+const sdk = new WorldsSdk({
+  baseUrl: process.env.WORLDS_BASE_URL!,
+  apiKey: process.env.WORLDS_API_KEY!
+});
+
+const sources = [
+  { id: "schema-world", schema: true },
+  { id: "my-knowledge-graph", write: true }
+];
+
+const tools = {
+  discoverSchema: createDiscoverSchemaTool({ sdk, sources }),
+  searchEntities: createSearchEntitiesTool({ sdk, sources }),
+  executeSparql: createExecuteSparqlTool({ sdk, sources })
+};
+
+const result = await generateText({
+  model: openai("gpt-4o"),
+  tools,
+  prompt: "What are the names of all people in the knowledge graph?"
+});
+
+console.log(result.text);
+```
+
+## Streaming Responses
+
+For better UX, stream responses as the agent works:
+
+```typescript
+import { streamText } from "ai";
+
+const result = streamText({
+  model: openai("gpt-4o"),
+  tools,
+  prompt: "Find information about Albert Einstein and summarize it"
+});
+
+// Stream the text response
+for await (const chunk of result.textStream) {
+  process.stdout.write(chunk);
+}
+
+console.log("\n\nFinal result:");
+const finalResult = await result.response;
+console.log(finalResult);
+```
+
+## Multi-Turn Conversations
+
+Build conversational agents that maintain context:
+
+```typescript
+import { generateText } from "ai";
+import { openai } from "@ai-sdk/openai";
+
+const messages = [
+  {
+    role: "system" as const,
+    content: `You are a helpful assistant that can query and update a knowledge graph.
+    Always search for existing entities before creating new ones to avoid duplicates.
+    When modifying data, explain what you're doing and ask for confirmation.`
+  }
+];
+
+const chat = async (userMessage: string) => {
+  messages.push({
+    role: "user" as const,
+    content: userMessage
+  });
+
+  const result = await generateText({
+    model: openai("gpt-4o"),
+    tools,
+    messages,
+    maxSteps: 10
+  });
+
+  messages.push({
+    role: "assistant" as const,
+    content: result.text
+  });
+
+  return result.text;
+};
+
+// Use the chat function
+console.log(await chat("Find all people in the graph"));
+console.log(await chat("What about organizations?"));
+console.log(await chat("Add a new person named Alice"));
+```
+
+## Complete Example: Knowledge Graph Assistant
+
+Here's a complete example of a conversational agent with all tools:
+
+```typescript
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+import { 
+  createDiscoverSchemaTool,
+  createSearchEntitiesTool,
+  createDisambiguateEntitiesTool,
+  createExecuteSparqlTool,
+  createGenerateIriTool,
+  createValidateRdfTool
+} from "@wazoo/worlds-ai-sdk";
+import { generateText } from "ai";
+import { anthropic } from "@ai-sdk/anthropic";
+
+// Initialize SDK
+const sdk = new WorldsSdk({
+  baseUrl: process.env.WORLDS_BASE_URL!,
+  apiKey: process.env.WORLDS_API_KEY!
+});
+
+// Configure sources
+const sources = [
+  { id: "schema-world", schema: true },
+  { id: "my-knowledge-graph", write: true }
+];
+
+// Create all tools
+const tools = {
+  discoverSchema: createDiscoverSchemaTool({ sdk, sources }),
+  searchEntities: createSearchEntitiesTool({ sdk, sources }),
+  disambiguateEntities: createDisambiguateEntitiesTool(),
+  executeSparql: createExecuteSparqlTool({ sdk, sources }),
+  generateIri: createGenerateIriTool(),
+  validateRdf: createValidateRdfTool({ sdk })
+};
+
+// System prompt
+const systemPrompt = `You are an expert knowledge graph assistant.
+
+Your capabilities:
+- Search for entities using natural language
+- Discover available schema terms (classes and properties)
+- Execute SPARQL queries to retrieve precise data
+- Add new entities and relationships
+- Validate data before insertion
+
+Best practices:
+1. Always search for existing entities before creating new ones
+2. Use discoverSchema to find appropriate ontology terms
+3. Disambiguate search results when multiple matches exist
+4. Validate data with validateRdf before complex insertions
+5. Explain what you're doing when modifying the graph
+
+Be helpful, accurate, and cautious when making changes.`;
+
+// Chat function
+const messages = [
+  { role: "system" as const, content: systemPrompt }
+];
+
+const chat = async (userMessage: string) => {
+  messages.push({ role: "user" as const, content: userMessage });
+
+  const result = await generateText({
+    model: anthropic("claude-4.5-sonnet"),
+    tools,
+    messages,
+    maxSteps: 15
+  });
+
+  messages.push({ 
+    role: "assistant" as const, 
+    content: result.text 
+  });
+
+  // Show tool usage
+  console.log("\n[Tool Calls Made]");
+  for (const step of result.steps) {
+    if (step.toolCalls) {
+      for (const call of step.toolCalls) {
+        console.log(`- ${call.toolName}`);
+      }
+    }
+  }
+  console.log();
+
+  return result.text;
+};
+
+// Example conversation
+async function main() {
+  console.log(await chat(
+    "What schema terms are available for modeling people and organizations?"
+  ));
+
+  console.log("\n" + "=".repeat(80) + "\n");
+
+  console.log(await chat(
+    "Find all people named John in the graph"
+  ));
+
+  console.log("\n" + "=".repeat(80) + "\n");
+
+  console.log(await chat(
+    "Add a new person named Alice Johnson who works at Acme Corp. "
+    + "Use appropriate schema.org properties."
+  ));
+}
+
+main();
+```
+
+## Web API Integration
+
+Integrate with Next.js or other web frameworks:
+
+```typescript
+// app/api/chat/route.ts
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+import { 
+  createSearchEntitiesTool,
+  createExecuteSparqlTool 
+} from "@wazoo/worlds-ai-sdk";
+import { streamText } from "ai";
+import { openai } from "@ai-sdk/openai";
+
+const sdk = new WorldsSdk({
+  baseUrl: process.env.WORLDS_BASE_URL!,
+  apiKey: process.env.WORLDS_API_KEY!
+});
+
+const tools = {
+  searchEntities: createSearchEntitiesTool({ 
+    sdk, 
+    sources: [{ id: "public-graph" }] 
+  }),
+  executeSparql: createExecuteSparqlTool({ 
+    sdk, 
+    sources: [{ id: "public-graph" }] 
+  })
+};
+
+export async function POST(req: Request) {
+  const { messages } = await req.json();
+
+  const result = streamText({
+    model: openai("gpt-4o"),
+    tools,
+    messages,
+    maxSteps: 5
+  });
+
+  return result.toDataStreamResponse();
+}
+```
+
+## Best Practices
+
+### 1. Use System Prompts
+
+Guide the agent's behavior with clear system prompts:
+
+```typescript
+const systemPrompt = `You are a knowledge graph assistant.
+
+Guidelines:
+- Search before creating new entities to avoid duplicates
+- Use schema.org vocabulary when available
+- Explain your actions when modifying data
+- If unsure, ask for clarification rather than guessing`;
+```
+
+### 2. Limit Tool Steps
+
+Prevent infinite loops by limiting the number of tool calls:
+
+```typescript
+const result = await generateText({
+  model: yourModel,
+  tools,
+  messages,
+  maxSteps: 10  // Prevent excessive tool usage
+});
+```
+
+### 3. Configure Read-Only vs Write Access
+
+Separate read-only and writable sources for safety:
+
+```typescript
+const sources = [
+  { id: "schema-world", schema: true },           // Read-only schema
+  { id: "reference-data" },                       // Read-only data
+  { id: "user-data", write: true }                // User can modify this
+];
+```
+
+### 4. Validate Before Writing
+
+Use validation tools for complex updates:
+
+```typescript
+const systemPrompt = `Before inserting complex data structures,
+use the validateRdf tool to check for errors.`;
+```
+
+### 5. Monitor Tool Usage
+
+Log tool calls to understand agent behavior:
+
+```typescript
+const result = await generateText({ /* ... */ });
+
+for (const step of result.steps) {
+  if (step.toolCalls) {
+    console.log("Tools used:", step.toolCalls.map(c => c.toolName));
+  }
+}
+```
+
+## Error Handling
+
+Handle errors gracefully:
+
+```typescript
+try {
+  const result = await generateText({
+    model: openai("gpt-4o"),
+    tools,
+    prompt: userInput
+  });
+  return result.text;
+} catch (error) {
+  if (error.message.includes("Write operations are disabled")) {
+    return "I don't have permission to modify this knowledge graph.";
+  }
+  console.error("Agent error:", error);
+  return "I encountered an error. Please try again.";
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="AI Tools Reference" icon="wrench" href="/ai-sdk/tools">
+    Detailed reference for all available tools
+  </Card>
+  <Card title="Worlds SDK" icon="book" href="/sdk/worlds-client">
+    Learn about the underlying SDK methods
+  </Card>
+  <Card title="Vercel AI SDK" icon="link" href="https://sdk.vercel.ai/docs">
+    Official AI SDK documentation
+  </Card>
+</CardGroup>

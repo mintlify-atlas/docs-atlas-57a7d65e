@@ -1,0 +1,509 @@
+---
+title: Worlds Client
+description: Complete API reference for the Worlds client methods
+---
+
+The `Worlds` client provides methods for interacting with knowledge graphs (worlds) in the Worlds API.
+
+## Accessing the Client
+
+The Worlds client is available via the `worlds` property on the SDK instance:
+
+```typescript
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+
+const sdk = new WorldsSdk({
+  baseUrl: "https://api.worlds.example.com",
+  apiKey: "your-api-key-here"
+});
+
+// Access the Worlds client
+const worlds = sdk.worlds;
+```
+
+## Methods
+
+### list
+
+List all worlds with pagination support.
+
+```typescript
+list(options?: {
+  page?: number;
+  pageSize?: number;
+}): Promise<World[]>
+```
+
+<ParamField path="options.page" type="number" default="1">
+  The page number to retrieve (1-indexed)
+</ParamField>
+
+<ParamField path="options.pageSize" type="number" default="20">
+  The number of worlds to return per page
+</ParamField>
+
+<ResponseField name="return" type="Promise<World[]>">
+  An array of World objects
+</ResponseField>
+
+**Example:**
+
+```typescript
+// List first page with default page size
+const worlds = await sdk.worlds.list();
+
+// List second page with custom page size
+const moreWorlds = await sdk.worlds.list({ 
+  page: 2, 
+  pageSize: 50 
+});
+```
+
+---
+
+### get
+
+Get a specific world by ID.
+
+```typescript
+get(id: string): Promise<World | null>
+```
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the world
+</ParamField>
+
+<ResponseField name="return" type="Promise<World | null>">
+  The World object if found, or `null` if the world does not exist
+</ResponseField>
+
+**Example:**
+
+```typescript
+const world = await sdk.worlds.get("world-id-123");
+
+if (world) {
+  console.log(`Found world: ${world.label}`);
+} else {
+  console.log("World not found");
+}
+```
+
+---
+
+### create
+
+Create a new world.
+
+```typescript
+create(data: CreateWorldParams): Promise<World>
+```
+
+<ParamField path="data.slug" type="string" required>
+  A URL-friendly identifier for the world (must be unique)
+</ParamField>
+
+<ParamField path="data.label" type="string" required>
+  A human-readable name for the world
+</ParamField>
+
+<ParamField path="data.description" type="string | null" optional>
+  An optional description of the world
+</ParamField>
+
+<ResponseField name="return" type="Promise<World>">
+  The newly created World object
+</ResponseField>
+
+**Example:**
+
+```typescript
+const newWorld = await sdk.worlds.create({
+  slug: "my-knowledge-graph",
+  label: "My Knowledge Graph",
+  description: "A graph containing information about my domain"
+});
+
+console.log(`Created world with ID: ${newWorld.id}`);
+```
+
+---
+
+### update
+
+Update an existing world.
+
+```typescript
+update(id: string, data: UpdateWorldParams): Promise<void>
+```
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the world to update
+</ParamField>
+
+<ParamField path="data.slug" type="string" optional>
+  Updated URL-friendly identifier
+</ParamField>
+
+<ParamField path="data.label" type="string" optional>
+  Updated human-readable name
+</ParamField>
+
+<ParamField path="data.description" type="string | null" optional>
+  Updated description
+</ParamField>
+
+**Example:**
+
+```typescript
+await sdk.worlds.update("world-id-123", {
+  label: "Updated Knowledge Graph",
+  description: "Updated description"
+});
+```
+
+---
+
+### delete
+
+Delete a world.
+
+```typescript
+delete(id: string): Promise<void>
+```
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the world to delete
+</ParamField>
+
+**Example:**
+
+```typescript
+await sdk.worlds.delete("world-id-123");
+console.log("World deleted successfully");
+```
+
+<Warning>
+  Deleting a world is permanent and cannot be undone. All data in the world will be lost.
+</Warning>
+
+---
+
+### sparql
+
+Execute a SPARQL query or update against a world.
+
+```typescript
+sparql(
+  id: string,
+  query: string,
+  options?: {
+    defaultGraphUris?: string[];
+    namedGraphUris?: string[];
+  }
+): Promise<ExecuteSparqlOutput>
+```
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the world
+</ParamField>
+
+<ParamField path="query" type="string" required>
+  The SPARQL query or update to execute
+</ParamField>
+
+<ParamField path="options.defaultGraphUris" type="string[]" optional>
+  URIs of default graphs to query
+</ParamField>
+
+<ParamField path="options.namedGraphUris" type="string[]" optional>
+  URIs of named graphs to query
+</ParamField>
+
+<ResponseField name="return" type="Promise<ExecuteSparqlOutput>">
+  Query results (SELECT, ASK, CONSTRUCT, DESCRIBE) or `null` for updates
+</ResponseField>
+
+**Example (SELECT query):**
+
+```typescript
+const result = await sdk.worlds.sparql(
+  "world-id-123",
+  `
+    PREFIX schema: <http://schema.org/>
+    SELECT ?name WHERE {
+      ?person a schema:Person ;
+              schema:name ?name .
+    }
+    LIMIT 10
+  `
+);
+
+if (result && 'results' in result && 'bindings' in result.results) {
+  for (const binding of result.results.bindings) {
+    console.log(binding.name.value);
+  }
+}
+```
+
+**Example (ASK query):**
+
+```typescript
+const result = await sdk.worlds.sparql(
+  "world-id-123",
+  `
+    PREFIX schema: <http://schema.org/>
+    ASK { ?person a schema:Person }
+  `
+);
+
+if (result && 'boolean' in result) {
+  console.log(`Has people: ${result.boolean}`);
+}
+```
+
+**Example (INSERT update):**
+
+```typescript
+await sdk.worlds.sparql(
+  "world-id-123",
+  `
+    PREFIX schema: <http://schema.org/>
+    INSERT DATA {
+      <http://example.org/person/1> a schema:Person ;
+        schema:name "Alice" .
+    }
+  `
+);
+```
+
+---
+
+### search
+
+Search for entities in a world using full-text and vector search.
+
+```typescript
+search(
+  id: string,
+  query: string,
+  options?: {
+    limit?: number;
+    subjects?: string[];
+    predicates?: string[];
+    types?: string[];
+  }
+): Promise<TripleSearchResult[]>
+```
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the world
+</ParamField>
+
+<ParamField path="query" type="string" required>
+  The search query text
+</ParamField>
+
+<ParamField path="options.limit" type="number" optional>
+  Maximum number of results to return
+</ParamField>
+
+<ParamField path="options.subjects" type="string[]" optional>
+  Filter by specific subject IRIs
+</ParamField>
+
+<ParamField path="options.predicates" type="string[]" optional>
+  Filter by specific predicate IRIs
+</ParamField>
+
+<ParamField path="options.types" type="string[]" optional>
+  Filter by RDF types (rdf:type values)
+</ParamField>
+
+<ResponseField name="return" type="Promise<TripleSearchResult[]>">
+  An array of matching triples with relevance scores
+</ResponseField>
+
+**Example:**
+
+```typescript
+const results = await sdk.worlds.search(
+  "world-id-123",
+  "Albert Einstein",
+  {
+    limit: 5,
+    types: ["http://schema.org/Person"]
+  }
+);
+
+for (const result of results) {
+  console.log(`${result.subject}: ${result.predicate} = ${result.object}`);
+  console.log(`Score: ${result.score}`);
+}
+```
+
+---
+
+### import
+
+Import RDF data into a world.
+
+```typescript
+import(
+  id: string,
+  data: string | ArrayBuffer,
+  options?: {
+    format?: RdfFormat;
+  }
+): Promise<void>
+```
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the world
+</ParamField>
+
+<ParamField path="data" type="string | ArrayBuffer" required>
+  The RDF data to import
+</ParamField>
+
+<ParamField path="options.format" type="RdfFormat" default="n-quads">
+  The RDF serialization format: `"turtle"`, `"n-triples"`, `"n3"`, or `"n-quads"`
+</ParamField>
+
+**Example:**
+
+```typescript
+const turtleData = `
+  @prefix schema: <http://schema.org/> .
+  
+  <http://example.org/person/1> a schema:Person ;
+    schema:name "Alice" ;
+    schema:age 30 .
+`;
+
+await sdk.worlds.import(
+  "world-id-123",
+  turtleData,
+  { format: "turtle" }
+);
+```
+
+---
+
+### export
+
+Export a world's data in the specified RDF format.
+
+```typescript
+export(
+  id: string,
+  options?: { format?: RdfFormat }
+): Promise<ArrayBuffer>
+```
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the world
+</ParamField>
+
+<ParamField path="options.format" type="RdfFormat" default="n-quads">
+  The RDF serialization format: `"turtle"`, `"n-triples"`, `"n3"`, or `"n-quads"`
+</ParamField>
+
+<ResponseField name="return" type="Promise<ArrayBuffer>">
+  The exported RDF data as an ArrayBuffer
+</ResponseField>
+
+**Example:**
+
+```typescript
+const buffer = await sdk.worlds.export(
+  "world-id-123",
+  { format: "turtle" }
+);
+
+const text = new TextDecoder().decode(buffer);
+console.log(text);
+
+// Or save to a file (Node.js)
+import { writeFile } from "fs/promises";
+await writeFile("world-export.ttl", buffer);
+```
+
+---
+
+### listLogs
+
+List logs for a world.
+
+```typescript
+listLogs(
+  id: string,
+  options?: {
+    page?: number;
+    pageSize?: number;
+    level?: string;
+  }
+): Promise<Log[]>
+```
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the world
+</ParamField>
+
+<ParamField path="options.page" type="number" optional>
+  The page number to retrieve
+</ParamField>
+
+<ParamField path="options.pageSize" type="number" optional>
+  The number of logs to return per page
+</ParamField>
+
+<ParamField path="options.level" type="string" optional>
+  Filter by log level: `"info"`, `"warn"`, `"error"`, or `"debug"`
+</ParamField>
+
+<ResponseField name="return" type="Promise<Log[]>">
+  An array of Log objects
+</ResponseField>
+
+**Example:**
+
+```typescript
+const logs = await sdk.worlds.listLogs(
+  "world-id-123",
+  { 
+    level: "error",
+    pageSize: 10
+  }
+);
+
+for (const log of logs) {
+  console.log(`[${log.level}] ${log.message}`);
+  if (log.metadata) {
+    console.log("Metadata:", log.metadata);
+  }
+}
+```
+
+## Error Handling
+
+All methods throw errors when operations fail. Always wrap API calls in try-catch blocks:
+
+```typescript
+try {
+  const world = await sdk.worlds.get("invalid-id");
+} catch (error) {
+  console.error(`Failed to get world: ${error.message}`);
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="TypeScript Types" icon="code" href="/sdk/types">
+    Explore all TypeScript types and interfaces
+  </Card>
+  <Card title="AI SDK" icon="brain" href="/ai-sdk/overview">
+    Integrate AI capabilities with the Worlds AI SDK
+  </Card>
+</CardGroup>

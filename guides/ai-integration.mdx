@@ -1,0 +1,439 @@
+---
+title: AI Integration
+description: Use Worlds Platform as persistent memory and context for AI agents
+---
+
+Worlds Platform is designed as an **AI-native context engine**. It provides structured, queryable memory for AI agents, enabling them to reason over knowledge graphs and maintain persistent context across conversations.
+
+## Why Worlds for AI?
+
+Traditional RAG (Retrieval-Augmented Generation) relies on similarity search over unstructured text. Worlds goes beyond RAG by providing:
+
+- **Symbolic Memory**: Understand relationships, hierarchies, and logic—not just text similarity
+- **Reasoning**: SPARQL queries enable complex reasoning over interconnected facts
+- **Persistence**: Knowledge persists across sessions and agents
+- **Structured Context**: RDF triples provide explicit, queryable relationships
+- **Tool-Calling**: First-class LLM tool support via the AI SDK
+
+<Note>
+**World memory is not just RAG.** Worlds Platform focuses on symbolic memory. It understands relationships, hierarchies, and logic, moving beyond similarity matches to true reasoning.
+</Note>
+
+## Worlds AI SDK
+
+The **Worlds Platform AI SDK** (`@wazoo/worlds-ai-sdk`) provides ready-to-use tools for LLM frameworks like Vercel AI SDK, LangChain, and others.
+
+### Installation
+
+```bash
+deno add jsr:@wazoo/worlds-sdk jsr:@wazoo/worlds-ai-sdk
+```
+
+### Basic Setup
+
+```typescript
+import { generateText } from "ai";
+import { openai } from "@ai-sdk/openai";
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+import { createTools } from "@wazoo/worlds-ai-sdk";
+
+const sdk = new WorldsSdk({
+  baseUrl: "https://api.wazoo.dev",
+  apiKey: process.env.WORLDS_API_KEY,
+});
+
+const tools = createTools({
+  sdk,
+  sources: [{ id: "my-knowledge-base" }],
+});
+
+const { text } = await generateText({
+  model: openai("gpt-4o"),
+  tools,
+  prompt: "Find all people in the knowledge base and describe them.",
+});
+
+console.log(text);
+```
+
+## Available Tools
+
+The AI SDK provides these tools for LLMs:
+
+### 1. Search Entities
+
+Semantic search for entities within a world:
+
+```typescript
+// The AI can call this automatically
+const results = await tools.searchEntities({
+  source: "my-world-id",
+  query: "software engineers in San Francisco",
+  types: ["http://schema.org/Person"],
+  limit: 10,
+});
+```
+
+Implementation: `~/workspace/source/packages/ai-sdk/tools/search-entities.ts`
+
+### 2. Execute SPARQL
+
+Direct SPARQL query execution:
+
+```typescript
+// The AI can write and execute SPARQL queries
+const result = await tools.executeSparql({
+  source: "my-world-id",
+  sparql: `
+    PREFIX schema: <http://schema.org/>
+    SELECT ?name ?email WHERE {
+      ?person a schema:Person ;
+        schema:givenName ?name ;
+        schema:email ?email .
+    }
+  `,
+});
+```
+
+Implementation: `~/workspace/source/packages/ai-sdk/tools/execute-sparql.ts`
+
+### 3. Discover Schema
+
+Explore the ontology and schema of a world:
+
+```typescript
+// The AI learns the structure of your knowledge base
+const schema = await tools.discoverSchema({
+  source: "my-world-id",
+});
+```
+
+Helps the AI understand:
+- Available entity types
+- Common predicates
+- Vocabulary and ontologies in use
+
+### 4. Generate IRI
+
+Generate valid IRIs for new entities:
+
+```typescript
+// The AI can create proper URIs for new entities
+const iri = await tools.generateIri({
+  source: "my-world-id",
+  description: "A new employee named John Smith",
+});
+// Returns: http://example.org/john-smith
+```
+
+### 5. Validate RDF (Coming Soon)
+
+Validate generated RDF against a world's schema.
+
+### 6. Disambiguate Entities (Coming Soon)
+
+Map natural language entities to existing IRIs.
+
+## Read-Only vs. Write Access
+
+Control whether the AI can modify your knowledge base:
+
+```typescript
+const tools = createTools({
+  sdk,
+  sources: [
+    { id: "readonly-world", write: false },  // Read-only
+    { id: "writable-world", write: true },   // Read and write
+  ],
+});
+```
+
+<Warning>
+When `write: false`, INSERT/DELETE/UPDATE queries will be rejected. Only SELECT, ASK, CONSTRUCT, and DESCRIBE queries are allowed.
+</Warning>
+
+## Example Use Cases
+
+### Personal Knowledge Assistant
+
+```typescript
+import { generateText } from "ai";
+import { openai } from "@ai-sdk/openai";
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+import { createTools } from "@wazoo/worlds-ai-sdk";
+
+const sdk = new WorldsSdk({
+  baseUrl: "https://api.wazoo.dev",
+  apiKey: process.env.WORLDS_API_KEY,
+});
+
+const personalWorld = "my-personal-knowledge";
+
+const tools = createTools({
+  sdk,
+  sources: [{ id: personalWorld, write: true }],
+});
+
+// The AI can remember and retrieve personal information
+const { text } = await generateText({
+  model: openai("gpt-4o"),
+  tools,
+  prompt: "Remember that I prefer Python over JavaScript for backend work.",
+});
+
+console.log(text);
+// AI stores this preference as RDF triples
+
+// Later, in a new conversation:
+const { text: recommendation } = await generateText({
+  model: openai("gpt-4o"),
+  tools,
+  prompt: "What programming language should I use for my new API project?",
+});
+
+console.log(recommendation);
+// AI recalls your preference and suggests Python
+```
+
+### Customer Relationship Management
+
+```typescript
+const crmWorld = "customer-relationships";
+
+const tools = createTools({
+  sdk,
+  sources: [{ id: crmWorld, write: true }],
+});
+
+const { text } = await generateText({
+  model: openai("gpt-4o"),
+  tools,
+  systemInstruction: `You are a CRM assistant. Help track customer interactions, 
+    preferences, and relationships. Store all information in the knowledge base.`,
+  prompt: `Alice Johnson from Acme Corp just called. She's interested in our 
+    Enterprise plan and mentioned she needs multi-region support. She wants a 
+    demo next Tuesday.`,
+});
+
+// AI automatically:
+// 1. Creates/updates Alice's entity
+// 2. Links her to Acme Corp
+// 3. Stores her product interest
+// 4. Schedules the demo
+```
+
+### Research Assistant
+
+```typescript
+const researchWorld = "research-papers";
+
+const tools = createTools({
+  sdk,
+  sources: [{ id: researchWorld, write: true }],
+});
+
+const { text } = await generateText({
+  model: openai("gpt-4o"),
+  tools,
+  systemInstruction: `You are a research assistant. Help organize papers, 
+    authors, and concepts. Track citations and relationships between ideas.`,
+  prompt: `Add the paper "Thinking with Knowledge Graphs" by researchers 
+    from Stanford. It's about using knowledge graphs for AI reasoning, published 
+    in 2024. Tag it with topics: knowledge graphs, AI, reasoning.`,
+});
+
+// Later: "Find all papers about knowledge graphs published after 2023"
+```
+
+## Structuring Knowledge for AI
+
+### Use Standard Vocabularies
+
+Prefer widely-used vocabularies like Schema.org:
+
+```sparql
+PREFIX schema: <http://schema.org/>
+
+INSERT DATA {
+  <http://example.org/alice> a schema:Person ;
+    schema:givenName "Alice" ;
+    schema:familyName "Smith" ;
+    schema:email "alice@example.com" ;
+    schema:jobTitle "Software Engineer" ;
+    schema:worksFor <http://example.org/acme-corp> .
+
+  <http://example.org/acme-corp> a schema:Organization ;
+    schema:name "Acme Corporation" .
+}
+```
+
+### Explicit Relationships
+
+Create clear, queryable relationships:
+
+```sparql
+PREFIX schema: <http://schema.org/>
+PREFIX ex: <http://example.org/>
+
+INSERT DATA {
+  ex:alice schema:knows ex:bob .
+  ex:alice ex:reportsTo ex:carol .
+  ex:alice ex:hasSkill ex:skill-typescript .
+  
+  ex:skill-typescript a schema:DefinedTerm ;
+    schema:name "TypeScript" ;
+    schema:termCode "typescript" .
+}
+```
+
+### Rich Descriptions
+
+Add descriptive literals for better semantic search:
+
+```sparql
+PREFIX schema: <http://schema.org/>
+PREFIX ex: <http://example.org/>
+
+INSERT DATA {
+  ex:project-alpha a schema:Project ;
+    schema:name "Project Alpha" ;
+    schema:description "A cutting-edge AI platform for analyzing customer 
+      sentiment using natural language processing and machine learning models." ;
+    schema:startDate "2024-01-15"^^schema:Date ;
+    schema:keywords "AI, NLP, sentiment analysis, machine learning" .
+}
+```
+
+### Temporal Information
+
+Store time-based data for historical reasoning:
+
+```sparql
+PREFIX schema: <http://schema.org/>
+PREFIX ex: <http://example.org/>
+
+INSERT DATA {
+  ex:meeting-001 a schema:Event ;
+    schema:name "Q4 Planning Meeting" ;
+    schema:startDate "2024-12-15T14:00:00Z"^^schema:DateTime ;
+    schema:attendee ex:alice ;
+    schema:attendee ex:bob ;
+    schema:description "Quarterly planning session for 2025 roadmap" .
+}
+```
+
+## Multi-World Agents
+
+Agents can access multiple worlds simultaneously:
+
+```typescript
+const tools = createTools({
+  sdk,
+  sources: [
+    { id: "company-knowledge", write: false },  // Read-only company data
+    { id: "personal-notes", write: true },      // Personal workspace
+    { id: "project-alpha", write: true },       // Project-specific data
+  ],
+});
+
+const { text } = await generateText({
+  model: openai("gpt-4o"),
+  tools,
+  prompt: `Based on company policies in the company knowledge base, 
+    help me plan the architecture for Project Alpha and save notes.`,
+});
+```
+
+## Streaming Responses
+
+For real-time interactions:
+
+```typescript
+import { streamText } from "ai";
+
+const stream = await streamText({
+  model: openai("gpt-4o"),
+  tools,
+  prompt: "Find all customers interested in our Enterprise plan",
+});
+
+for await (const chunk of stream.textStream) {
+  process.stdout.write(chunk);
+}
+```
+
+## Best Practices
+
+<Tip>
+**Start Simple**: Begin with basic entity types (Person, Organization) and expand as needs grow.
+</Tip>
+
+<Tip>
+**System Instructions**: Provide clear system instructions to guide the AI on how to structure and query knowledge.
+</Tip>
+
+<Tip>
+**Schema Discovery**: Let the AI use `discoverSchema` before complex queries to understand available data.
+</Tip>
+
+<Warning>
+Always validate AI-generated data before trusting it in production systems. Use read-only mode for critical knowledge bases.
+</Warning>
+
+## Agentic Workflows
+
+Combine multiple steps:
+
+```typescript
+import { generateText } from "ai";
+import { openai } from "@ai-sdk/openai";
+
+// Agent workflow: Research → Store → Summarize
+async function researchAndStore(topic: string) {
+  // Step 1: Research (using other tools/APIs)
+  const researchData = await externalResearch(topic);
+
+  // Step 2: Store in knowledge base
+  await generateText({
+    model: openai("gpt-4o"),
+    tools,
+    prompt: `Store this research about ${topic}: ${researchData}`,
+  });
+
+  // Step 3: Generate summary from knowledge base
+  const summary = await generateText({
+    model: openai("gpt-4o"),
+    tools,
+    prompt: `Summarize everything we know about ${topic}`,
+  });
+
+  return summary.text;
+}
+```
+
+## Research and Inspiration
+
+Worlds Platform is inspired by:
+
+- **[Thinking with Knowledge Graphs](https://arxiv.org/abs/2412.10654)** - Using KGs for AI reasoning
+- **[World Models](https://worldmodels.github.io/)** - Ha & Schmidhuber's research on world representations
+- **[MemGPT](https://arxiv.org/abs/2310.08560)** - LLMs as operating systems with persistent memory
+
+See the [whitepaper](https://docs.wazoo.dev/overview/whitepaper) for more details.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="AI SDK Reference" icon="book" href="/ai-sdk/overview">
+    Complete AI SDK documentation and API reference
+  </Card>
+  <Card title="SPARQL Guide" icon="code" href="/guides/sparql">
+    Learn SPARQL for structured queries
+  </Card>
+  <Card title="Semantic Search" icon="search" href="/guides/search">
+    Understand vector-based search
+  </Card>
+  <Card title="Example Projects" icon="folder" href="https://github.com/wazootech/worlds">
+    Explore sample AI agent implementations
+  </Card>
+</CardGroup>

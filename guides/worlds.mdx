@@ -1,0 +1,306 @@
+---
+title: Managing Worlds
+description: Create, update, delete, and manage your knowledge bases with the Worlds SDK
+---
+
+Worlds are self-contained knowledge bases (also called knowledge graphs) that store RDF triples. Each world acts as an isolated SPARQL-compatible database for organizing facts, relationships, and semantic data.
+
+## Understanding Worlds
+
+A **world** in the Worlds Platform is:
+
+- A collection of RDF triples (subject-predicate-object statements)
+- SPARQL-queryable for complex reasoning
+- Searchable with semantic vector embeddings
+- Importable/exportable in standard RDF formats
+- Accessible via REST API, SDK, and CLI
+
+### World Properties
+
+Each world has the following properties:
+
+- **id**: Unique identifier (ULID format)
+- **slug**: URL-friendly identifier
+- **label**: Human-readable name
+- **description**: Optional description
+- **createdAt**: Timestamp of creation
+- **updatedAt**: Timestamp of last modification
+- **deletedAt**: Soft-delete timestamp (null if active)
+
+## Creating Worlds
+
+### Using the SDK
+
+```typescript
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+
+const sdk = new WorldsSdk({
+  baseUrl: "https://api.wazoo.dev",
+  apiKey: process.env.WORLDS_API_KEY,
+});
+
+const world = await sdk.worlds.create({
+  slug: "customer-knowledge",
+  label: "Customer Knowledge Base",
+  description: "CRM data and customer relationships",
+});
+
+console.log(world.id); // "01KH6XAGQKJ1B9MR6WS76YKQK5"
+```
+
+### Using the CLI
+
+```bash
+worlds create --slug "customer-knowledge" --label "Customer Knowledge Base"
+```
+
+**Output:**
+
+```json
+{
+  "id": "01KH6XAGQKJ1B9MR6WS76YKQK5",
+  "slug": "customer-knowledge",
+  "label": "Customer Knowledge Base",
+  "description": null,
+  "createdAt": 1770832347891,
+  "updatedAt": 1770832347891,
+  "deletedAt": null
+}
+```
+
+<Note>
+The **slug** must be unique within your organization and can only contain lowercase letters, numbers, and hyphens.
+</Note>
+
+## Listing Worlds
+
+### SDK Example
+
+```typescript
+// List all worlds (paginated)
+const worlds = await sdk.worlds.list({
+  page: 1,
+  pageSize: 20,
+});
+
+worlds.forEach((world) => {
+  console.log(`${world.label} (${world.id})`);
+});
+```
+
+### CLI Example
+
+```bash
+worlds list
+```
+
+## Getting a Specific World
+
+```typescript
+const world = await sdk.worlds.get("01KH6XAGQKJ1B9MR6WS76YKQK5");
+
+if (world) {
+  console.log(world.label);
+} else {
+  console.log("World not found");
+}
+```
+
+The `get()` method returns `null` if the world doesn't exist or has been deleted.
+
+## Updating Worlds
+
+You can update a world's metadata at any time:
+
+```typescript
+await sdk.worlds.update("01KH6XAGQKJ1B9MR6WS76YKQK5", {
+  label: "Updated Customer Knowledge",
+  description: "Enhanced CRM data with integrations",
+});
+```
+
+All fields in the update are optional:
+
+```typescript
+interface UpdateWorldParams {
+  slug?: string;
+  label?: string;
+  description?: string | null;
+}
+```
+
+## Deleting Worlds
+
+<Warning>
+Deleting a world permanently removes all triples, embeddings, and logs. This action cannot be undone.
+</Warning>
+
+```typescript
+await sdk.worlds.delete("01KH6XAGQKJ1B9MR6WS76YKQK5");
+```
+
+Using the CLI:
+
+```bash
+worlds delete 01KH6XAGQKJ1B9MR6WS76YKQK5
+```
+
+## Importing Data
+
+Import RDF data from various formats into your world:
+
+```typescript
+import { readFile } from "fs/promises";
+
+// Import from Turtle format
+const turtleData = await readFile("./knowledge.ttl", "utf-8");
+
+await sdk.worlds.import(
+  "01KH6XAGQKJ1B9MR6WS76YKQK5",
+  turtleData,
+  { format: "turtle" }
+);
+```
+
+### Supported Formats
+
+The Worlds Platform supports these RDF serialization formats:
+
+- **turtle**: Terse RDF Triple Language (`.ttl`)
+- **n-triples**: N-Triples (`.nt`)
+- **n-quads**: N-Quads (`.nq`)
+- **n3**: Notation3 (`.n3`)
+
+### Import Example Data
+
+```turtle
+@prefix ex: <http://example.org/> .
+@prefix schema: <http://schema.org/> .
+
+ex:alice a schema:Person ;
+  schema:givenName "Alice" ;
+  schema:familyName "Smith" ;
+  schema:email "alice@example.com" ;
+  schema:jobTitle "Software Engineer" .
+
+ex:bob a schema:Person ;
+  schema:givenName "Bob" ;
+  schema:familyName "Jones" ;
+  schema:knows ex:alice .
+```
+
+```typescript
+const rdfData = `...turtle content...`;
+
+await sdk.worlds.import(worldId, rdfData, { format: "turtle" });
+```
+
+## Exporting Data
+
+Export your world's data for backup or migration:
+
+```typescript
+const buffer = await sdk.worlds.export(
+  "01KH6XAGQKJ1B9MR6WS76YKQK5",
+  { format: "turtle" }
+);
+
+// Convert ArrayBuffer to string
+const text = new TextDecoder().decode(buffer);
+
+// Save to file
+await Deno.writeTextFile("./backup.ttl", text);
+```
+
+### Export with CLI
+
+```bash
+# Export to Turtle format
+worlds export 01KH6XAGQKJ1B9MR6WS76YKQK5 --format turtle > backup.ttl
+
+# Export to N-Quads
+worlds export 01KH6XAGQKJ1B9MR6WS76YKQK5 --format n-quads > backup.nq
+```
+
+## Viewing Logs
+
+Monitor activity and troubleshoot issues by accessing world logs:
+
+```typescript
+const logs = await sdk.worlds.listLogs(
+  "01KH6XAGQKJ1B9MR6WS76YKQK5",
+  {
+    page: 1,
+    pageSize: 50,
+    level: "error", // Optional: filter by level
+  }
+);
+
+logs.forEach((log) => {
+  console.log(`[${log.level}] ${log.message}`);
+  if (log.metadata) {
+    console.log(JSON.stringify(log.metadata, null, 2));
+  }
+});
+```
+
+Log levels:
+
+- `info`: General information
+- `warn`: Warning messages
+- `error`: Error conditions
+- `debug`: Detailed debugging information
+
+## Best Practices
+
+<Tip>
+**Use Descriptive Labels**: Choose clear, meaningful labels for your worlds to make them easy to identify in multi-world setups.
+</Tip>
+
+<Tip>
+**Regular Exports**: Schedule periodic exports of critical worlds as backups. Store them in version control or cloud storage.
+</Tip>
+
+<Tip>
+**Meaningful Slugs**: Use slugs that reflect the world's purpose (e.g., `customer-data`, `product-catalog`) for better organization.
+</Tip>
+
+<Warning>
+Avoid storing sensitive data (passwords, API keys) directly in RDF triples. Use encryption or reference external secure storage.
+</Warning>
+
+## Complete SDK Reference
+
+Refer to the SDK documentation for complete type definitions:
+
+```typescript
+class Worlds {
+  list(options?: { page?: number; pageSize?: number }): Promise<World[]>
+  get(id: string): Promise<World | null>
+  create(data: CreateWorldParams): Promise<World>
+  update(id: string, data: UpdateWorldParams): Promise<void>
+  delete(id: string): Promise<void>
+  import(id: string, data: string | ArrayBuffer, options?: { format?: RdfFormat }): Promise<void>
+  export(id: string, options?: { format?: RdfFormat }): Promise<ArrayBuffer>
+  listLogs(id: string, options?: { page?: number; pageSize?: number; level?: string }): Promise<Log[]>
+}
+```
+
+See `~/workspace/source/packages/sdk/clients/worlds/sdk.ts` for implementation details.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="SPARQL Queries" icon="code" href="/guides/sparql">
+    Learn to query and update your worlds with SPARQL
+  </Card>
+  <Card title="Semantic Search" icon="search" href="/guides/search">
+    Search your knowledge graphs with vector embeddings
+  </Card>
+  <Card title="AI Integration" icon="brain" href="/guides/ai-integration">
+    Use worlds as memory for AI agents
+  </Card>
+  <Card title="Console Guide" icon="browser" href="/guides/console">
+    Manage worlds visually in the web console
+  </Card>
+</CardGroup>

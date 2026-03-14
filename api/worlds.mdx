@@ -1,0 +1,280 @@
+---
+title: Worlds Endpoints
+description: Create, read, update, and delete worlds
+---
+
+Worlds are isolated RDF knowledge graphs. Each world has its own database and can store triples, support SPARQL queries, and enable semantic search.
+
+## List Worlds
+
+<Badge variant="success">GET</Badge> `/worlds`
+
+Retrieve a paginated list of all worlds.
+
+### Query Parameters
+
+<ParamField query="page" type="number" default="1">
+  Page number for pagination (minimum: 1)
+</ParamField>
+
+<ParamField query="pageSize" type="number" default="20">
+  Number of worlds per page (minimum: 1, maximum: 100)
+</ParamField>
+
+### Response
+
+Returns an array of world objects:
+
+<ResponseField name="id" type="string">
+  Unique identifier for the world (ULID)
+</ResponseField>
+
+<ResponseField name="slug" type="string">
+  Human-readable unique identifier
+</ResponseField>
+
+<ResponseField name="label" type="string">
+  Display name of the world
+</ResponseField>
+
+<ResponseField name="description" type="string | null">
+  Optional description of the world
+</ResponseField>
+
+<ResponseField name="createdAt" type="number">
+  Unix timestamp (milliseconds) when the world was created
+</ResponseField>
+
+<ResponseField name="updatedAt" type="number">
+  Unix timestamp (milliseconds) when the world was last updated
+</ResponseField>
+
+<ResponseField name="deletedAt" type="number | null">
+  Unix timestamp (milliseconds) when the world was deleted (null if not deleted)
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-worlds-instance.com/worlds?page=1&pageSize=20 \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json Response
+[
+  {
+    "id": "01HQZX9Y2ABCDEFGH123456789",
+    "slug": "my-knowledge-graph",
+    "label": "My Knowledge Graph",
+    "description": "A semantic knowledge base",
+    "createdAt": 1704067200000,
+    "updatedAt": 1704153600000,
+    "deletedAt": null
+  }
+]
+```
+
+</CodeGroup>
+
+---
+
+## Get a World
+
+<Badge variant="success">GET</Badge> `/worlds/:id`
+
+Retrieve a specific world by ID or slug.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  World ID (ULID) or slug
+</ParamField>
+
+### Response
+
+Returns a single world object with the same fields as the list endpoint.
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789 \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json Response
+{
+  "id": "01HQZX9Y2ABCDEFGH123456789",
+  "slug": "my-knowledge-graph",
+  "label": "My Knowledge Graph",
+  "description": "A semantic knowledge base",
+  "createdAt": 1704067200000,
+  "updatedAt": 1704153600000,
+  "deletedAt": null
+}
+```
+
+</CodeGroup>
+
+---
+
+## Create a World
+
+<Badge variant="warning">POST</Badge> `/worlds`
+
+Create a new world. Returns `201 Created` on success.
+
+### Request Body
+
+<ParamField body="slug" type="string" required>
+  Unique human-readable identifier (must be globally unique)
+</ParamField>
+
+<ParamField body="label" type="string" required>
+  Display name for the world
+</ParamField>
+
+<ParamField body="description" type="string" optional>
+  Optional description of the world
+</ParamField>
+
+<ParamField body="id" type="string" optional>
+  Optional custom ID (ULID format). If not provided, one will be generated.
+</ParamField>
+
+### Response
+
+Returns the created world object.
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://your-worlds-instance.com/worlds \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "slug": "research-papers",
+    "label": "Research Papers Database",
+    "description": "Academic papers and citations"
+  }'
+```
+
+```json Response
+{
+  "id": "01HQZY5K3MNOPQRST987654321",
+  "slug": "research-papers",
+  "label": "Research Papers Database",
+  "description": "Academic papers and citations",
+  "createdAt": 1704240000000,
+  "updatedAt": 1704240000000,
+  "deletedAt": null
+}
+```
+
+</CodeGroup>
+
+<Warning>
+World slugs must be globally unique. If a slug already exists, the request will return `409 Conflict`.
+</Warning>
+
+---
+
+## Update a World
+
+<Badge variant="info">PUT</Badge> `/worlds/:id`
+
+Update an existing world's metadata. Returns `204 No Content` on success.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  World ID (ULID) or slug to update
+</ParamField>
+
+### Request Body
+
+All fields are optional. Only provided fields will be updated.
+
+<ParamField body="slug" type="string" optional>
+  New slug for the world
+</ParamField>
+
+<ParamField body="label" type="string" optional>
+  New label for the world
+</ParamField>
+
+<ParamField body="description" type="string | null" optional>
+  New description (set to null to remove)
+</ParamField>
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X PUT https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789 \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "label": "Updated Knowledge Graph",
+    "description": "An updated description"
+  }'
+```
+
+</CodeGroup>
+
+---
+
+## Delete a World
+
+<Badge variant="danger">DELETE</Badge> `/worlds/:id`
+
+Soft-delete a world. The world is marked as deleted but data is retained. Returns `204 No Content` on success.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  World ID (ULID) or slug to delete
+</ParamField>
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X DELETE https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789 \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+</CodeGroup>
+
+<Note>
+This performs a soft delete by setting the `deletedAt` timestamp. Deleted worlds are excluded from list operations and cannot be queried.
+</Note>
+
+## Error Responses
+
+<ResponseField name="400 Bad Request" type="error">
+  Invalid request parameters or JSON body
+</ResponseField>
+
+<ResponseField name="401 Unauthorized" type="error">
+  Missing or invalid authentication
+</ResponseField>
+
+<ResponseField name="403 Forbidden" type="error">
+  Insufficient permissions (admin required for creating worlds)
+</ResponseField>
+
+<ResponseField name="404 Not Found" type="error">
+  World with specified ID does not exist
+</ResponseField>
+
+<ResponseField name="409 Conflict" type="error">
+  World slug already exists (when creating)
+</ResponseField>

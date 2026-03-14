@@ -1,0 +1,359 @@
+---
+title: Semantic Search
+description: Search your knowledge graphs using vector embeddings and natural language
+---
+
+The Worlds Platform provides powerful semantic search capabilities powered by vector embeddings. Instead of exact keyword matching, semantic search understands meaning and context to find relevant triples in your knowledge graph.
+
+## How Semantic Search Works
+
+When you add triples to a world:
+
+1. **Embedding Generation**: The platform automatically generates vector embeddings for triple objects using high-quality models (Google Gemini embeddings)
+2. **Indexing**: Embeddings are stored alongside the RDF data for fast retrieval
+3. **Hybrid Search**: Queries combine vector similarity (semantic) with full-text search (lexical) for optimal results
+
+## Basic Search
+
+### Using the SDK
+
+```typescript
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+
+const sdk = new WorldsSdk({
+  baseUrl: "https://api.wazoo.dev",
+  apiKey: process.env.WORLDS_API_KEY,
+});
+
+const results = await sdk.worlds.search(
+  "my-world-id",
+  "software engineers in San Francisco"
+);
+
+results.forEach((result) => {
+  console.log(`Subject: ${result.subject}`);
+  console.log(`Predicate: ${result.predicate}`);
+  console.log(`Object: ${result.object}`);
+  console.log(`Score: ${result.score}`);
+  console.log(`Vector Rank: ${result.vecRank}`);
+  console.log(`FTS Rank: ${result.ftsRank}`);
+  console.log("---");
+});
+```
+
+### Search Result Structure
+
+```typescript
+interface TripleSearchResult {
+  subject: string;        // URI of the subject
+  predicate: string;      // URI of the predicate
+  object: string;         // Value (URI or literal)
+  vecRank: number | null; // Vector similarity rank (lower is better)
+  ftsRank: number | null; // Full-text search rank (lower is better)
+  score: number;          // Combined relevance score (higher is better)
+  worldId?: string;       // World ID (for multi-world search)
+}
+```
+
+See `~/workspace/source/packages/sdk/clients/worlds/schema.ts:6` for the complete schema definition.
+
+## Search Options
+
+### Limiting Results
+
+Control the number of results returned:
+
+```typescript
+const results = await sdk.worlds.search(
+  "my-world-id",
+  "machine learning",
+  { limit: 5 }
+);
+```
+
+Default limit is 10, maximum is 100.
+
+### Filtering by Subjects
+
+Restrict search to specific subjects:
+
+```typescript
+const results = await sdk.worlds.search(
+  "my-world-id",
+  "contact information",
+  {
+    subjects: [
+      "http://example.org/alice",
+      "http://example.org/bob",
+    ],
+  }
+);
+```
+
+This searches only triples where the subject is Alice or Bob.
+
+### Filtering by Predicates
+
+Restrict search to specific predicates:
+
+```typescript
+const results = await sdk.worlds.search(
+  "my-world-id",
+  "Alice",
+  {
+    predicates: [
+      "http://schema.org/givenName",
+      "http://schema.org/email",
+    ],
+  }
+);
+```
+
+Useful when you know which properties you're interested in.
+
+### Filtering by Types
+
+Restrict search to entities of specific types:
+
+```typescript
+const results = await sdk.worlds.search(
+  "my-world-id",
+  "software development",
+  {
+    types: [
+      "http://schema.org/Person",
+      "http://schema.org/Organization",
+    ],
+  }
+);
+```
+
+The platform uses `rdf:type` predicates to determine entity types.
+
+### Combining Filters
+
+You can combine multiple filters:
+
+```typescript
+const results = await sdk.worlds.search(
+  "my-world-id",
+  "senior developer",
+  {
+    limit: 20,
+    types: ["http://schema.org/Person"],
+    predicates: ["http://schema.org/jobTitle"],
+  }
+);
+```
+
+## Search Examples
+
+### Finding People by Skills
+
+```typescript
+// First, ensure your data is structured:
+await sdk.worlds.sparql(
+  worldId,
+  `
+  PREFIX schema: <http://schema.org/>
+  PREFIX ex: <http://example.org/>
+
+  INSERT DATA {
+    ex:alice a schema:Person ;
+      schema:givenName "Alice Smith" ;
+      schema:jobTitle "Senior Software Engineer" ;
+      schema:knowsAbout "React, TypeScript, GraphQL" .
+    
+    ex:bob a schema:Person ;
+      schema:givenName "Bob Jones" ;
+      schema:jobTitle "Data Scientist" ;
+      schema:knowsAbout "Python, Machine Learning, TensorFlow" .
+  }
+  `
+);
+
+// Then search semantically:
+const reactDevelopers = await sdk.worlds.search(
+  worldId,
+  "frontend web development",
+  {
+    types: ["http://schema.org/Person"],
+    limit: 10,
+  }
+);
+```
+
+### Finding Related Entities
+
+```typescript
+// Search for all triples related to a specific entity
+const aliceInfo = await sdk.worlds.search(
+  worldId,
+  "Alice contact information email phone",
+  {
+    subjects: ["http://example.org/alice"],
+  }
+);
+```
+
+### Product Search
+
+```typescript
+await sdk.worlds.sparql(
+  worldId,
+  `
+  PREFIX schema: <http://schema.org/>
+  PREFIX ex: <http://example.org/products/>
+
+  INSERT DATA {
+    ex:laptop-001 a schema:Product ;
+      schema:name "UltraBook Pro 15" ;
+      schema:description "High-performance laptop with 32GB RAM, 1TB SSD, dedicated GPU" ;
+      schema:price "1999" .
+
+    ex:phone-001 a schema:Product ;
+      schema:name "SmartPhone X" ;
+      schema:description "Latest smartphone with AI camera, 5G support" ;
+      schema:price "899" .
+  }
+  `
+);
+
+const products = await sdk.worlds.search(
+  worldId,
+  "powerful computer for gaming and video editing",
+  {
+    types: ["http://schema.org/Product"],
+  }
+);
+```
+
+## Using Search in the Console
+
+The Worlds Console provides a **Search** tab for interactive semantic search:
+
+1. Navigate to your world
+2. Click the **Search** tab
+3. Enter a natural language query
+4. Optionally add filters (subjects, predicates, types)
+5. View results with relevance scores
+
+See the [Console Guide](/guides/console) for more details.
+
+## Understanding Relevance Scores
+
+### Vector Rank (vecRank)
+
+- Based on cosine similarity between query embedding and triple embeddings
+- **Lower rank = more relevant** (rank 1 is best)
+- Null if vector search didn't contribute to this result
+
+### Full-Text Search Rank (ftsRank)
+
+- Based on traditional keyword matching (BM25 algorithm)
+- **Lower rank = more relevant** (rank 1 is best)
+- Null if full-text search didn't contribute to this result
+
+### Combined Score
+
+- Hybrid score combining both vector and full-text results
+- **Higher score = more relevant**
+- Normalized to a 0-1 range
+
+```typescript
+// Example: Analyzing search quality
+results.forEach((result) => {
+  if (result.vecRank !== null && result.ftsRank === null) {
+    console.log("Semantic match only (meaning-based)");
+  } else if (result.ftsRank !== null && result.vecRank === null) {
+    console.log("Keyword match only (exact term)");
+  } else {
+    console.log("Hybrid match (both semantic and keyword)");
+  }
+});
+```
+
+## Search vs. SPARQL
+
+When to use each:
+
+| Use Case | Best Tool |
+|----------|----------|
+| **"Find engineers with Python experience"** | Search (semantic) |
+| **"Get all people older than 30"** | SPARQL (structured) |
+| **"Similar products to this one"** | Search (semantic) |
+| **"Count triples by type"** | SPARQL (aggregation) |
+| **"Entities related to climate change"** | Search (concept-based) |
+| **"All employees in Engineering dept"** | SPARQL (precise filtering) |
+
+<Tip>
+**Combine both**: Use SPARQL for structured queries and filtering, then use search for semantic discovery within those results.
+</Tip>
+
+## Performance Considerations
+
+<Tip>
+**Limit Results**: Always use the `limit` parameter to avoid large response payloads.
+</Tip>
+
+<Tip>
+**Specific Filters**: Adding type or predicate filters significantly improves search speed and relevance.
+</Tip>
+
+<Warning>
+Very generic queries without filters may return less relevant results. Add context to your search query or use filters.
+</Warning>
+
+## AI Integration
+
+Semantic search is automatically available to AI agents using the Worlds AI SDK:
+
+```typescript
+import { createTools } from "@wazoo/worlds-ai-sdk";
+import { generateText } from "ai";
+import { openai } from "@ai-sdk/openai";
+
+const tools = createTools({
+  sdk,
+  sources: [{ id: worldId }],
+});
+
+const { text } = await generateText({
+  model: openai("gpt-4o"),
+  tools,
+  prompt: "Find all software engineers who know React",
+});
+```
+
+The AI will automatically use the `searchEntities` tool to perform semantic search. See `~/workspace/source/packages/ai-sdk/tools/search-entities.ts` for implementation.
+
+## Best Practices
+
+<Tip>
+**Rich Descriptions**: Add descriptive literals to your triples. The more context in the object values, the better the embeddings.
+</Tip>
+
+<Tip>
+**Query Phrasing**: Write search queries as natural sentences or questions for best semantic matching.
+</Tip>
+
+<Tip>
+**Use Types**: Always define `rdf:type` for entities to enable type-based filtering.
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="AI Integration" icon="brain" href="/guides/ai-integration">
+    Let AI agents use semantic search automatically
+  </Card>
+  <Card title="SPARQL Queries" icon="code" href="/guides/sparql">
+    Combine search with structured SPARQL queries
+  </Card>
+  <Card title="Managing Worlds" icon="database" href="/guides/worlds">
+    Learn about world data management
+  </Card>
+  <Card title="Console Guide" icon="browser" href="/guides/console">
+    Use search in the web interface
+  </Card>
+</CardGroup>

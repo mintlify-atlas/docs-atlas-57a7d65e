@@ -1,0 +1,666 @@
+---
+title: 'Commands'
+description: 'Complete reference for all Worlds CLI commands'
+---
+
+## Overview
+
+The Worlds CLI provides commands for managing worlds, querying data, and interacting with the knowledge graph.
+
+## Global Options
+
+All commands support the following global options:
+
+<ParamField path="--help" type="boolean" default="false">
+  Display help information for the command
+</ParamField>
+
+<ParamField path="-h" type="boolean" default="false">
+  Alias for `--help`
+</ParamField>
+
+## create
+
+Create a new world.
+
+### Usage
+
+```bash
+worlds create --label <label> [--slug <slug>] [--description <desc>]
+```
+
+### Options
+
+<ParamField path="--label" type="string" required>
+  Human-readable label for the world
+</ParamField>
+
+<ParamField path="-l" type="string" required>
+  Alias for `--label`
+</ParamField>
+
+<ParamField path="--slug" type="string">
+  URL-friendly identifier (auto-generated from label if not provided)
+</ParamField>
+
+<ParamField path="-s" type="string">
+  Alias for `--slug`
+</ParamField>
+
+<ParamField path="--description" type="string">
+  Optional description of the world
+</ParamField>
+
+<ParamField path="-d" type="string">
+  Alias for `--description`
+</ParamField>
+
+### Examples
+
+```bash
+# Create a world with auto-generated slug
+worlds create --label "My First World"
+```
+
+```bash
+# Create a world with custom slug and description
+worlds create --label "Research Database" --slug "research-db" --description "Knowledge graph for research papers"
+```
+
+### Output
+
+Returns the created world object as JSON:
+
+```json
+{
+  "id": "world_abc123",
+  "slug": "my-first-world",
+  "label": "My First World",
+  "description": null,
+  "createdAt": "2026-03-14T12:00:00Z",
+  "updatedAt": "2026-03-14T12:00:00Z"
+}
+```
+
+## update
+
+Update an existing world's metadata.
+
+### Usage
+
+```bash
+worlds update <worldId> [--slug <slug>] [--label <label>] [--description <desc>]
+```
+
+### Arguments
+
+<ParamField path="worldId" type="string" required>
+  The ID of the world to update
+</ParamField>
+
+### Options
+
+<ParamField path="--label" type="string">
+  New label for the world
+</ParamField>
+
+<ParamField path="-l" type="string">
+  Alias for `--label`
+</ParamField>
+
+<ParamField path="--slug" type="string">
+  New slug for the world
+</ParamField>
+
+<ParamField path="-s" type="string">
+  Alias for `--slug`
+</ParamField>
+
+<ParamField path="--description" type="string">
+  New description for the world
+</ParamField>
+
+<ParamField path="-d" type="string">
+  Alias for `--description`
+</ParamField>
+
+### Examples
+
+```bash
+# Update world label
+worlds update world_abc123 --label "Updated World Name"
+```
+
+```bash
+# Update multiple fields
+worlds update world_abc123 --label "New Label" --description "New description"
+```
+
+### Output
+
+```
+Updated world world_abc123
+```
+
+## delete
+
+Delete a world and all its data.
+
+### Usage
+
+```bash
+worlds delete <worldId>
+```
+
+### Arguments
+
+<ParamField path="worldId" type="string" required>
+  The ID of the world to delete
+</ParamField>
+
+### Examples
+
+```bash
+worlds delete world_abc123
+```
+
+<Warning>
+This operation permanently deletes the world and all its data. This action cannot be undone.
+</Warning>
+
+### Output
+
+```
+Deleted world world_abc123
+```
+
+## list
+
+List all worlds with optional pagination.
+
+### Usage
+
+```bash
+worlds list [--page <n>] [--pageSize <n>]
+```
+
+### Options
+
+<ParamField path="--page" type="number" default="1">
+  Page number for pagination
+</ParamField>
+
+<ParamField path="-p" type="number" default="1">
+  Alias for `--page`
+</ParamField>
+
+<ParamField path="--pageSize" type="number" default="10">
+  Number of items per page
+</ParamField>
+
+<ParamField path="-s" type="number" default="10">
+  Alias for `--pageSize`
+</ParamField>
+
+### Examples
+
+```bash
+# List all worlds (default pagination)
+worlds list
+```
+
+```bash
+# List with custom pagination
+worlds list --page 2 --pageSize 20
+```
+
+### Output
+
+```json
+{
+  "items": [
+    {
+      "id": "world_abc123",
+      "slug": "my-first-world",
+      "label": "My First World",
+      "description": null,
+      "createdAt": "2026-03-14T12:00:00Z",
+      "updatedAt": "2026-03-14T12:00:00Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "pageSize": 10
+}
+```
+
+## get
+
+Get detailed information about a specific world.
+
+### Usage
+
+```bash
+worlds get <worldId>
+```
+
+### Arguments
+
+<ParamField path="worldId" type="string" required>
+  The ID of the world to retrieve
+</ParamField>
+
+### Examples
+
+```bash
+worlds get world_abc123
+```
+
+### Output
+
+```json
+{
+  "id": "world_abc123",
+  "slug": "my-first-world",
+  "label": "My First World",
+  "description": "A knowledge graph for research",
+  "createdAt": "2026-03-14T12:00:00Z",
+  "updatedAt": "2026-03-14T12:00:00Z"
+}
+```
+
+## search
+
+Search for entities within a world using semantic search.
+
+### Usage
+
+```bash
+worlds search <worldId> <query> [--limit <n>] [--subjects <s1> --subjects <s2>] [--predicates <p1>]
+```
+
+### Arguments
+
+<ParamField path="worldId" type="string" required>
+  The ID of the world to search
+</ParamField>
+
+<ParamField path="query" type="string" required>
+  Search query text
+</ParamField>
+
+### Options
+
+<ParamField path="--query" type="string">
+  Search query (alternative to positional argument)
+</ParamField>
+
+<ParamField path="-q" type="string">
+  Alias for `--query`
+</ParamField>
+
+<ParamField path="--limit" type="number" default="10">
+  Maximum number of results to return
+</ParamField>
+
+<ParamField path="-l" type="number" default="10">
+  Alias for `--limit`
+</ParamField>
+
+<ParamField path="--subjects" type="string[]">
+  Filter by specific subject URIs (can be specified multiple times)
+</ParamField>
+
+<ParamField path="-s" type="string[]">
+  Alias for `--subjects`
+</ParamField>
+
+<ParamField path="--predicates" type="string[]">
+  Filter by specific predicate URIs (can be specified multiple times)
+</ParamField>
+
+<ParamField path="-p" type="string[]">
+  Alias for `--predicates`
+</ParamField>
+
+### Examples
+
+```bash
+# Basic search
+worlds search world_abc123 "artificial intelligence"
+```
+
+```bash
+# Search with limit
+worlds search world_abc123 "machine learning" --limit 5
+```
+
+```bash
+# Search with subject filters
+worlds search world_abc123 "research" --subjects "http://example.org/person/1" --subjects "http://example.org/person/2"
+```
+
+### Output
+
+```json
+{
+  "results": [
+    {
+      "subject": "http://example.org/paper/123",
+      "predicate": "http://schema.org/name",
+      "object": "AI Research Paper",
+      "score": 0.95
+    }
+  ],
+  "total": 1
+}
+```
+
+## sparql
+
+Execute a SPARQL query against a world's knowledge graph.
+
+### Usage
+
+```bash
+worlds sparql <worldId> <query_or_file_path>
+```
+
+### Arguments
+
+<ParamField path="worldId" type="string" required>
+  The ID of the world to query
+</ParamField>
+
+<ParamField path="query_or_file_path" type="string" required>
+  SPARQL query string or path to a file containing the query
+</ParamField>
+
+### Examples
+
+```bash
+# Inline query
+worlds sparql world_abc123 "SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10"
+```
+
+```bash
+# Query from file
+worlds sparql world_abc123 query.sparql
+```
+
+<Tip>
+For complex queries, save them in a `.sparql` file and reference the file path. The CLI automatically detects if the argument is a file path.
+</Tip>
+
+### Example SPARQL Query
+
+```sparql
+PREFIX schema: <http://schema.org/>
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT ?person ?name WHERE {
+  ?person rdf:type schema:Person .
+  ?person schema:name ?name .
+}
+LIMIT 10
+```
+
+### Output
+
+```json
+{
+  "head": {
+    "vars": ["s", "p", "o"]
+  },
+  "results": {
+    "bindings": [
+      {
+        "s": { "type": "uri", "value": "http://example.org/entity/1" },
+        "p": { "type": "uri", "value": "http://schema.org/name" },
+        "o": { "type": "literal", "value": "Example Entity" }
+      }
+    ]
+  }
+}
+```
+
+## import
+
+Import RDF data into a world.
+
+### Usage
+
+```bash
+worlds import <worldId> <file_path> [--format <format>]
+```
+
+### Arguments
+
+<ParamField path="worldId" type="string" required>
+  The ID of the world to import data into
+</ParamField>
+
+<ParamField path="file_path" type="string" required>
+  Path to the file containing RDF data
+</ParamField>
+
+### Options
+
+<ParamField path="--format" type="string">
+  RDF format of the input file (e.g., `turtle`, `n-quads`, `rdf-xml`)
+</ParamField>
+
+<ParamField path="-f" type="string">
+  Alias for `--format`
+</ParamField>
+
+### Supported Formats
+
+- `turtle` - Turtle format (.ttl)
+- `n-quads` - N-Quads format (.nq)
+- `rdf-xml` - RDF/XML format (.rdf)
+- `json-ld` - JSON-LD format (.jsonld)
+
+### Examples
+
+```bash
+# Import Turtle file
+worlds import world_abc123 data.ttl --format turtle
+```
+
+```bash
+# Import N-Quads file
+worlds import world_abc123 data.nq --format n-quads
+```
+
+<Info>
+If the format is not specified, the CLI attempts to detect it from the file extension.
+</Info>
+
+### Output
+
+```
+Imported data into world world_abc123
+```
+
+## export
+
+Export data from a world in RDF format.
+
+### Usage
+
+```bash
+worlds export <worldId> [--format <format>]
+```
+
+### Arguments
+
+<ParamField path="worldId" type="string" required>
+  The ID of the world to export data from
+</ParamField>
+
+### Options
+
+<ParamField path="--format" type="string" default="turtle">
+  RDF format for the export (e.g., `turtle`, `n-quads`, `rdf-xml`)
+</ParamField>
+
+<ParamField path="-f" type="string" default="turtle">
+  Alias for `--format`
+</ParamField>
+
+### Supported Formats
+
+- `turtle` - Turtle format (.ttl)
+- `n-quads` - N-Quads format (.nq)
+- `rdf-xml` - RDF/XML format (.rdf)
+- `json-ld` - JSON-LD format (.jsonld)
+
+### Examples
+
+```bash
+# Export as Turtle (default)
+worlds export world_abc123 > data.ttl
+```
+
+```bash
+# Export as N-Quads
+worlds export world_abc123 --format n-quads > data.nq
+```
+
+```bash
+# Export as JSON-LD
+worlds export world_abc123 --format json-ld > data.jsonld
+```
+
+<Tip>
+The export command outputs to stdout, so use shell redirection (`>`) to save to a file.
+</Tip>
+
+### Output
+
+The output is written to stdout in the specified RDF format. Example Turtle output:
+
+```turtle
+@prefix schema: <http://schema.org/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+<http://example.org/entity/1> rdf:type schema:Thing ;
+    schema:name "Example Entity" .
+```
+
+## chat
+
+Start an interactive AI chat session with a world.
+
+### Usage
+
+```bash
+worlds chat --worldId <id> [--write] [--userIri <iri>]
+```
+
+### Options
+
+<ParamField path="--worldId" type="string" required>
+  World ID to chat with
+</ParamField>
+
+<ParamField path="-w" type="string" required>
+  Alias for `--worldId`
+</ParamField>
+
+<ParamField path="--write" type="boolean" default="false">
+  Enable write operations (allows the AI to modify the knowledge graph)
+</ParamField>
+
+<ParamField path="--userIri" type="string">
+  User IRI for provenance tracking
+</ParamField>
+
+<ParamField path="-u" type="string">
+  Alias for `--userIri`
+</ParamField>
+
+### Prerequisites
+
+The chat command requires OpenRouter API configuration. See [Configuration](/cli/configuration) for details.
+
+```bash
+export OPENROUTER_API_KEY="your-api-key"
+export OPENROUTER_MODEL="google/gemini-2.0-flash-001"  # Optional
+```
+
+### Examples
+
+```bash
+# Start read-only chat session
+worlds chat --worldId world_abc123
+```
+
+```bash
+# Start chat session with write access
+worlds chat --worldId world_abc123 --write
+```
+
+```bash
+# Start chat with user provenance
+worlds chat --worldId world_abc123 --write --userIri "http://example.org/users/alice"
+```
+
+### Interactive Session
+
+Once started, you can interact with the AI:
+
+```bash
+> What entities are in this world?
+
+✦ Assistant
+⚙ searchEntities("entities") => {"results": [...]}
+This world contains 5 entities including research papers and authors.
+
+> Tell me about artificial intelligence papers
+
+✦ Assistant
+⚙ executeSparql(
+SELECT ?paper ?title WHERE {
+  ?paper rdf:type schema:ScholarlyArticle .
+  ?paper schema:name ?title .
+  FILTER CONTAINS(LCASE(?title), "artificial intelligence")
+}
+) => {"results": [...]}
+I found 3 papers about artificial intelligence...
+
+> exit
+```
+
+<Info>
+Type `exit` to end the chat session.
+</Info>
+
+### Features
+
+- **Read Mode** (default): AI can query and search the knowledge graph
+- **Write Mode** (`--write`): AI can also create, update, and delete entities
+- **Provenance**: Track changes with `--userIri`
+- **Tool Visibility**: See what SPARQL queries and tools the AI executes
+
+<Warning>
+Be cautious with `--write` mode as it allows the AI to modify your knowledge graph. Always review the AI's actions.
+</Warning>
+
+## Help
+
+Get help for any command by adding `--help` or `-h`:
+
+```bash
+worlds create --help
+worlds search -h
+```
+
+Display general help:
+
+```bash
+worlds --help
+worlds -h
+worlds  # Running with no command also shows help
+```

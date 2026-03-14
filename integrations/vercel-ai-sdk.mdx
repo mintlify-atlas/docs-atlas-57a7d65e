@@ -1,0 +1,352 @@
+---
+title: "Vercel AI SDK Integration"
+description: "Use Worlds Platform as a tool provider for Vercel AI SDK"
+---
+
+The Worlds AI SDK provides first-class support for [Vercel AI SDK](https://sdk.vercel.ai), enabling AI agents to access and reason over your knowledge graphs using tool-calling.
+
+## Overview
+
+The `@wazoo/worlds-ai-sdk` package exports a `createTools` function that generates Vercel AI SDK-compatible tools. These tools allow your AI agents to:
+
+- **Discover schemas**: Explore the ontology and vocabulary of your knowledge bases
+- **Execute SPARQL**: Run complex queries and updates against your worlds
+- **Search entities**: Perform semantic search for entities using vector embeddings
+- **Generate IRIs**: Create unique identifiers for new entities
+- **Disambiguate entities**: Map natural language references to existing IRIs
+- **Validate RDF**: Ensure generated RDF conforms to your schema
+
+## Installation
+
+<CodeGroup>
+  ```bash npm
+  npx jsr add @wazoo/worlds-ai-sdk @wazoo/worlds-sdk
+  npm install ai @ai-sdk/openai
+  ```
+
+  ```bash pnpm
+  pnpm dlx jsr add @wazoo/worlds-ai-sdk @wazoo/worlds-sdk
+  pnpm add ai @ai-sdk/openai
+  ```
+
+  ```bash Deno
+  deno add jsr:@wazoo/worlds-ai-sdk jsr:@wazoo/worlds-sdk
+  deno add npm:ai npm:@ai-sdk/openai
+  ```
+</CodeGroup>
+
+## Basic Usage
+
+Here's a complete example showing how to use Worlds with the Vercel AI SDK:
+
+```typescript example.ts
+import { generateText } from "ai";
+import { openai } from "@ai-sdk/openai";
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+import { createTools } from "@wazoo/worlds-ai-sdk";
+
+// Initialize the Worlds SDK
+const sdk = new WorldsSdk({
+  baseUrl: "http://localhost:8000",
+  apiKey: "your-api-key",
+});
+
+// Create AI tools for your world
+const tools = createTools({
+  sdk,
+  sources: [{ id: "my-knowledge-base" }],
+});
+
+// Use the tools with generateText
+const { text } = await generateText({
+  model: openai("gpt-4o"),
+  tools,
+  prompt: "Find all people in the knowledge base and describe them.",
+});
+
+console.log(text);
+```
+
+## Configuration Options
+
+The `createTools` function accepts the following options:
+
+<ParamField path="sdk" type="WorldsSdk" required>
+  The WorldsSdk instance to use for API calls
+</ParamField>
+
+<ParamField path="sources" type="Source[]" required>
+  An array of world sources that the AI can access. Each source requires:
+  - `id` (string): The world ID
+  - `write` (boolean, optional): Whether the AI can modify this world
+  - `schema` (boolean, optional): Whether this is a schema source for vocabulary discovery
+</ParamField>
+
+<ParamField path="generateIri" type="() => string | Promise<string>" optional>
+  Custom function to generate IRIs for new entities. Defaults to generating ULIDs at `https://wazoo.dev/.well-known/genid/`
+</ParamField>
+
+<ParamField path="disambiguate" type="function" optional>
+  Custom function to disambiguate entity references
+</ParamField>
+
+<ParamField path="shacl" type="string" optional>
+  SHACL shapes (in Turtle format) for validating RDF data
+</ParamField>
+
+### Multiple Sources Example
+
+```typescript
+const tools = createTools({
+  sdk,
+  sources: [
+    { id: "user-data", write: true },           // Writable user data
+    { id: "schema.org", schema: true },         // Read-only schema
+    { id: "company-knowledge" },                // Read-only company data
+  ],
+});
+```
+
+<Warning>
+  Only one source can have `write: true`. The AI can read from multiple sources but only write to one.
+</Warning>
+
+## Available Tools
+
+When you call `createTools`, it returns an object with these tools:
+
+### discoverSchema
+
+Discovers classes and properties in a schema source, helping the AI understand what vocabulary is available.
+
+```typescript
+tools.discoverSchema
+// Input: { source: string, referenceText: string, limit?: number }
+// Output: { results: EntitySchema[] }
+```
+
+### executeSparql
+
+Executes SPARQL queries and updates against a world.
+
+```typescript
+tools.executeSparql
+// Input: { source: string, sparql: string }
+// Output: ExecuteSparqlOutput (SELECT, ASK, CONSTRUCT, or DESCRIBE results)
+```
+
+### searchEntities
+
+Performs semantic search for entities using vector embeddings and full-text search.
+
+```typescript
+tools.searchEntities
+// Input: { source: string, query: string, types?: string[], limit?: number }
+// Output: { results: TripleSearchResult[] }
+```
+
+### generateIri
+
+Generates a unique IRI for a new entity.
+
+```typescript
+tools.generateIri
+// Input: { referenceText: string }
+// Output: { iri: string }
+```
+
+<Note>
+  The AI is instructed to always search for existing entities before generating new IRIs to avoid duplicates.
+</Note>
+
+### disambiguateEntities
+
+Maps natural language entity references to existing IRIs in the knowledge base.
+
+```typescript
+tools.disambiguateEntities
+// Input: { source: string, entities: Array<{ text: string, context?: string }> }
+// Output: { entities: Array<{ text: string, candidates: Array<{ iri: string, label?: string, score: number }> }> }
+```
+
+### validateRdf
+
+Validates RDF triples against SHACL shapes to ensure data quality.
+
+```typescript
+tools.validateRdf
+// Input: { rdf: string, format?: "turtle" | "n-triples" }
+// Output: { valid: boolean, violations?: ValidationViolation[] }
+```
+
+## Complete Working Example
+
+Here's a more complete example that demonstrates tool-calling:
+
+```typescript agent.ts
+import { generateText } from "ai";
+import { openai } from "@ai-sdk/openai";
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+import { createTools } from "@wazoo/worlds-ai-sdk";
+
+const sdk = new WorldsSdk({
+  baseUrl: process.env.WORLDS_API_URL ?? "http://localhost:8000",
+  apiKey: process.env.WORLDS_API_KEY!,
+});
+
+// First, create a world and add some data
+const world = await sdk.worlds.create({
+  slug: "team-directory",
+  label: "Team Directory",
+  description: "Company team member information",
+});
+
+// Add some initial knowledge
+await sdk.worlds.sparql(
+  world.id,
+  `
+  PREFIX schema: <http://schema.org/>
+  
+  INSERT DATA {
+    <http://example.com/alice> a schema:Person ;
+      schema:givenName "Alice" ;
+      schema:jobTitle "Senior Engineer" ;
+      schema:worksFor <http://example.com/engineering> .
+    
+    <http://example.com/bob> a schema:Person ;
+      schema:givenName "Bob" ;
+      schema:jobTitle "Product Manager" ;
+      schema:worksFor <http://example.com/product> .
+    
+    <http://example.com/engineering> a schema:Organization ;
+      schema:name "Engineering Department" .
+    
+    <http://example.com/product> a schema:Organization ;
+      schema:name "Product Department" .
+  }
+  `
+);
+
+// Create tools for the AI agent
+const tools = createTools({
+  sdk,
+  sources: [{ id: world.id, write: true }],
+});
+
+// Let the AI explore and answer questions
+const { text, toolCalls } = await generateText({
+  model: openai("gpt-4o"),
+  tools,
+  maxSteps: 5,
+  prompt: `
+    Look at the team directory and tell me:
+    1. How many people are in engineering?
+    2. Who is the product manager?
+    3. Add a new person: Charlie, a Designer in the Product Department.
+  `,
+});
+
+console.log("AI Response:", text);
+console.log("\nTool calls made:", toolCalls.length);
+```
+
+Run with:
+
+```bash
+deno run -A agent.ts
+```
+
+## Streaming Responses
+
+You can also use `streamText` for streaming responses:
+
+```typescript
+import { streamText } from "ai";
+
+const result = streamText({
+  model: openai("gpt-4o"),
+  tools,
+  prompt: "Find all people and describe their roles.",
+});
+
+for await (const chunk of result.textStream) {
+  process.stdout.write(chunk);
+}
+```
+
+## Advanced: Custom IRI Generation
+
+You can provide a custom IRI generator to control how new entity URIs are created:
+
+```typescript
+import { ulid } from "@std/ulid";
+
+const tools = createTools({
+  sdk,
+  sources: [{ id: "my-world", write: true }],
+  generateIri: () => `https://mycompany.com/entities/${ulid()}`,
+});
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use schema sources for vocabulary discovery">
+    Include a schema source (like schema.org or your custom ontology) so the AI can discover appropriate properties and classes:
+    
+    ```typescript
+    sources: [
+      { id: "my-data", write: true },
+      { id: "schema.org", schema: true },
+    ]
+    ```
+  </Accordion>
+
+  <Accordion title="Limit write access">
+    Only enable `write: true` on sources where you want the AI to make changes. This prevents accidental modifications to reference data.
+  </Accordion>
+
+  <Accordion title="Use maxSteps to control tool usage">
+    Set `maxSteps` in your `generateText` call to control how many times the AI can call tools:
+    
+    ```typescript
+    await generateText({
+      model: openai("gpt-4o"),
+      tools,
+      maxSteps: 10, // Allow up to 10 tool calls
+      prompt: "...",
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Monitor tool calls for debugging">
+    Access the `toolCalls` property in the result to see what the AI did:
+    
+    ```typescript
+    const { text, toolCalls } = await generateText({ ... });
+    
+    for (const call of toolCalls) {
+      console.log(`Tool: ${call.toolName}`);
+      console.log(`Args: ${JSON.stringify(call.args)}`);
+      console.log(`Result: ${JSON.stringify(call.result)}`);
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="LangChain Integration" icon="link" href="/integrations/langchain">
+    Use Worlds with LangChain agents and tools
+  </Card>
+  <Card title="Custom Integrations" icon="code" href="/integrations/custom">
+    Build custom integrations using the REST API
+  </Card>
+  <Card title="SDK Reference" icon="book" href="/sdk/installation">
+    Explore the full SDK documentation
+  </Card>
+  <Card title="SPARQL Guide" icon="database" href="/guides/sparql">
+    Learn SPARQL for advanced queries
+  </Card>
+</CardGroup>

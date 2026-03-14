@@ -1,0 +1,439 @@
+---
+title: Writing SPARQL Queries
+description: Learn to query and update your knowledge graphs using SPARQL
+---
+
+SPARQL (SPARQL Protocol and RDF Query Language) is the standard query language for RDF data. The Worlds Platform provides full SPARQL 1.1 support for querying and updating your knowledge graphs.
+
+## SPARQL Basics
+
+SPARQL queries work with **triples**: subject-predicate-object statements that form your knowledge graph.
+
+```turtle
+<http://example.com/alice> <http://schema.org/givenName> "Alice" .
+# Subject: http://example.com/alice
+# Predicate: http://schema.org/givenName  
+# Object: "Alice" (literal)
+```
+
+## Query Types
+
+SPARQL supports four main query types:
+
+| Query Type | Purpose | Returns |
+|------------|---------|----------|
+| **SELECT** | Retrieve specific variables | JSON bindings |
+| **ASK** | Check if pattern exists | Boolean |
+| **CONSTRUCT** | Build new RDF graph | RDF quads |
+| **DESCRIBE** | Get description of resource | RDF quads |
+
+## SELECT Queries
+
+Retrieve data matching a graph pattern:
+
+```typescript
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+
+const sdk = new WorldsSdk({
+  baseUrl: "https://api.wazoo.dev",
+  apiKey: process.env.WORLDS_API_KEY,
+});
+
+const result = await sdk.worlds.sparql(
+  "my-world-id",
+  `
+  SELECT ?person ?name WHERE {
+    ?person <http://schema.org/givenName> ?name .
+  }
+  LIMIT 10
+  `
+);
+
+if (result && "results" in result) {
+  result.results.bindings.forEach((binding) => {
+    console.log(`Person: ${binding.person.value}`);
+    console.log(`Name: ${binding.name.value}`);
+  });
+}
+```
+
+**Result Format:**
+
+```json
+{
+  "head": {
+    "vars": ["person", "name"],
+    "link": null
+  },
+  "results": {
+    "bindings": [
+      {
+        "person": { "type": "uri", "value": "http://example.com/alice" },
+        "name": { "type": "literal", "value": "Alice" }
+      }
+    ]
+  }
+}
+```
+
+### Using Prefixes
+
+Prefixes make queries more readable:
+
+```sparql
+PREFIX schema: <http://schema.org/>
+PREFIX ex: <http://example.org/>
+
+SELECT ?name ?email WHERE {
+  ?person a schema:Person ;
+    schema:givenName ?name ;
+    schema:email ?email .
+}
+```
+
+### Filtering Results
+
+```sparql
+PREFIX schema: <http://schema.org/>
+
+SELECT ?person ?age WHERE {
+  ?person a schema:Person ;
+    schema:age ?age .
+  FILTER(?age > 25)
+}
+ORDER BY DESC(?age)
+LIMIT 10
+```
+
+## INSERT Queries
+
+Add new triples to your world:
+
+```typescript
+await sdk.worlds.sparql(
+  "my-world-id",
+  `
+  PREFIX schema: <http://schema.org/>
+  PREFIX ex: <http://example.org/>
+
+  INSERT DATA {
+    ex:alice a schema:Person ;
+      schema:givenName "Alice" ;
+      schema:familyName "Smith" ;
+      schema:email "alice@example.com" ;
+      schema:age 30 .
+  }
+  `
+);
+```
+
+### Conditional INSERT
+
+Insert only if a pattern exists:
+
+```sparql
+PREFIX schema: <http://schema.org/>
+PREFIX ex: <http://example.org/>
+
+INSERT {
+  ex:alice schema:colleague ?colleague .
+}
+WHERE {
+  ex:alice a schema:Person .
+  ?colleague a schema:Person .
+  FILTER(?colleague != ex:alice)
+}
+```
+
+## DELETE Queries
+
+Remove triples from your world:
+
+```typescript
+await sdk.worlds.sparql(
+  "my-world-id",
+  `
+  PREFIX ex: <http://example.org/>
+
+  DELETE WHERE {
+    ex:alice ?p ?o .
+  }
+  `
+);
+```
+
+<Warning>
+**DELETE WHERE** removes all matching triples. Use with caution!
+</Warning>
+
+### Conditional DELETE
+
+```sparql
+PREFIX schema: <http://schema.org/>
+
+DELETE {
+  ?person schema:email ?email .
+}
+WHERE {
+  ?person a schema:Person ;
+    schema:email ?email .
+  FILTER(CONTAINS(?email, "@old-domain.com"))
+}
+```
+
+## UPDATE Queries
+
+Combine DELETE and INSERT to update data:
+
+```sparql
+PREFIX schema: <http://schema.org/>
+PREFIX ex: <http://example.org/>
+
+DELETE {
+  ex:alice schema:email ?oldEmail .
+}
+INSERT {
+  ex:alice schema:email "alice@newdomain.com" .
+}
+WHERE {
+  ex:alice schema:email ?oldEmail .
+}
+```
+
+## ASK Queries
+
+Check if a pattern exists:
+
+```typescript
+const result = await sdk.worlds.sparql(
+  "my-world-id",
+  `
+  PREFIX schema: <http://schema.org/>
+  PREFIX ex: <http://example.org/>
+
+  ASK {
+    ex:alice a schema:Person .
+  }
+  `
+);
+
+if (result && "boolean" in result) {
+  console.log(`Alice exists: ${result.boolean}`);
+}
+```
+
+**Result Format:**
+
+```json
+{
+  "head": { "link": null },
+  "boolean": true
+}
+```
+
+## CONSTRUCT Queries
+
+Build a new RDF graph from existing data:
+
+```sparql
+PREFIX schema: <http://schema.org/>
+PREFIX ex: <http://example.org/>
+
+CONSTRUCT {
+  ?person a ex:Employee ;
+    ex:fullName ?fullName .
+}
+WHERE {
+  ?person a schema:Person ;
+    schema:givenName ?firstName ;
+    schema:familyName ?lastName .
+  BIND(CONCAT(?firstName, " ", ?lastName) AS ?fullName)
+}
+```
+
+## Common Query Patterns
+
+### Count Triples
+
+```sparql
+SELECT (COUNT(*) as ?count)
+WHERE {
+  ?s ?p ?o .
+}
+```
+
+### Find Unique Predicates
+
+```sparql
+SELECT DISTINCT ?predicate WHERE {
+  ?s ?predicate ?o .
+}
+ORDER BY ?predicate
+```
+
+### Find All Types
+
+```sparql
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+
+SELECT DISTINCT ?type (COUNT(?instance) as ?count) WHERE {
+  ?instance rdf:type ?type .
+}
+GROUP BY ?type
+ORDER BY DESC(?count)
+```
+
+### Traversing Relationships
+
+```sparql
+PREFIX schema: <http://schema.org/>
+PREFIX ex: <http://example.org/>
+
+SELECT ?friend ?friendOfFriend WHERE {
+  ex:alice schema:knows ?friend .
+  ?friend schema:knows ?friendOfFriend .
+  FILTER(?friendOfFriend != ex:alice)
+}
+```
+
+### Optional Patterns
+
+```sparql
+PREFIX schema: <http://schema.org/>
+
+SELECT ?person ?name ?email WHERE {
+  ?person a schema:Person ;
+    schema:givenName ?name .
+  OPTIONAL { ?person schema:email ?email . }
+}
+```
+
+## Advanced Features
+
+### Named Graphs
+
+Query specific named graphs:
+
+```typescript
+const result = await sdk.worlds.sparql(
+  "my-world-id",
+  `
+  SELECT ?s ?p ?o WHERE {
+    GRAPH <http://example.org/graph1> {
+      ?s ?p ?o .
+    }
+  }
+  `,
+  {
+    namedGraphUris: ["http://example.org/graph1"],
+  }
+);
+```
+
+### BIND and Expressions
+
+```sparql
+PREFIX schema: <http://schema.org/>
+
+SELECT ?person ?firstName ?lastName ?fullName WHERE {
+  ?person a schema:Person ;
+    schema:givenName ?firstName ;
+    schema:familyName ?lastName .
+  BIND(CONCAT(?firstName, " ", ?lastName) AS ?fullName)
+}
+```
+
+### Aggregations
+
+```sparql
+PREFIX schema: <http://schema.org/>
+
+SELECT ?jobTitle (AVG(?age) as ?avgAge) (COUNT(?person) as ?count) WHERE {
+  ?person a schema:Person ;
+    schema:jobTitle ?jobTitle ;
+    schema:age ?age .
+}
+GROUP BY ?jobTitle
+HAVING (COUNT(?person) > 2)
+ORDER BY DESC(?avgAge)
+```
+
+## SPARQL with the CLI
+
+```bash
+# Run a SELECT query
+worlds sparql 'SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10'
+
+# Insert data
+worlds sparql '
+  PREFIX schema: <http://schema.org/>
+  PREFIX ex: <http://example.org/>
+  
+  INSERT DATA {
+    ex:alice a schema:Person ;
+      schema:givenName "Alice" .
+  }
+'
+
+# Save query to file
+echo 'SELECT * WHERE { ?s ?p ?o } LIMIT 100' > query.sparql
+worlds sparql "$(cat query.sparql)"
+```
+
+## Error Handling
+
+```typescript
+try {
+  const result = await sdk.worlds.sparql(worldId, query);
+  // Process result
+} catch (error) {
+  console.error("SPARQL query failed:", error.message);
+  // Common errors:
+  // - Syntax errors in SPARQL
+  // - Invalid URIs
+  // - Permission issues (read-only world)
+}
+```
+
+## Performance Tips
+
+<Tip>
+**Use LIMIT**: Always use LIMIT for exploratory queries to avoid overwhelming responses.
+</Tip>
+
+<Tip>
+**Index Your Predicates**: Frequently queried predicates should be specific and well-defined for faster lookups.
+</Tip>
+
+<Tip>
+**Avoid SELECT ***: Explicitly list variables you need instead of using `SELECT *` for better performance.
+</Tip>
+
+<Warning>
+Very broad patterns like `?s ?p ?o` without LIMIT can be slow on large worlds.
+</Warning>
+
+## SPARQL Resources
+
+- [SPARQL 1.1 Specification](https://www.w3.org/TR/sparql11-overview/) - Official W3C standard
+- [SPARQL by Example](https://www.w3.org/2009/Talks/0615-qbe/) - Tutorial from W3C
+- Server implementation: Uses [Comunica](https://comunica.dev/) SPARQL engine
+
+See `~/workspace/source/packages/server/lib/blob/sparql.ts` for query execution details.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Semantic Search" icon="search" href="/guides/search">
+    Use vector embeddings for semantic search
+  </Card>
+  <Card title="AI Integration" icon="brain" href="/guides/ai-integration">
+    Let AI agents write SPARQL for you
+  </Card>
+  <Card title="Managing Worlds" icon="database" href="/guides/worlds">
+    Learn about world CRUD operations
+  </Card>
+  <Card title="SDK Reference" icon="code" href="/sdk/installation">
+    Complete SDK documentation
+  </Card>
+</CardGroup>

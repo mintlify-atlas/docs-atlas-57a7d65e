@@ -1,0 +1,72 @@
+---
+title: Installation
+description: Install and set up the Worlds SDK in your project
+---
+
+The Worlds SDK is a TypeScript SDK for interacting with the Worlds API. It provides a simple and type-safe interface for managing knowledge graphs.
+
+## Package Information
+
+- **Package Name**: `@wazoo/worlds-sdk`
+- **Version**: `0.0.1`
+- **Entry Point**: `./mod.ts`
+
+## Installation
+
+Install the SDK using your preferred package manager:
+
+<CodeGroup>
+
+```bash npm
+npm install @wazoo/worlds-sdk
+```
+
+```bash pnpm
+pnpm add @wazoo/worlds-sdk
+```
+
+```bash yarn
+yarn add @wazoo/worlds-sdk
+```
+
+```bash deno
+# Add to your import map or import directly:
+import { WorldsSdk } from "jsr:@wazoo/worlds-sdk";
+```
+
+</CodeGroup>
+
+## Quick Start
+
+Once installed, you can initialize the SDK with your API credentials:
+
+```typescript
+import { WorldsSdk } from "@wazoo/worlds-sdk";
+
+const sdk = new WorldsSdk({
+  baseUrl: "https://api.worlds.example.com",
+  apiKey: "your-api-key-here"
+});
+
+// List all worlds
+const worlds = await sdk.worlds.list();
+console.log(worlds);
+```
+
+## TypeScript Support
+
+The SDK is written in TypeScript and provides full type definitions out of the box. No additional type packages are required.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/sdk/configuration">
+    Learn how to configure the SDK with authentication and custom options
+  </Card>
+  <Card title="Worlds Client" icon="globe" href="/sdk/worlds-client">
+    Explore the Worlds client API and available methods
+  </Card>
+  <Card title="TypeScript Types" icon="code" href="/sdk/types">
+    Reference for all TypeScript types and interfaces
+  </Card>
+</CardGroup>

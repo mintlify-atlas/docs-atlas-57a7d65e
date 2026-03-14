@@ -1,0 +1,351 @@
+---
+title: Logs Endpoint
+description: Retrieve world activity logs
+---
+
+The logs endpoint provides access to operational logs for a world, including queries, updates, imports, and other activities. Logs are useful for auditing, debugging, and monitoring world operations.
+
+## Get World Logs
+
+<Badge variant="success">GET</Badge> `/worlds/:id/logs`
+
+Retrieve paginated logs for a specific world.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  World ID (ULID) or slug to retrieve logs from
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="page" type="number" default="1">
+  Page number for pagination (minimum: 1)
+</ParamField>
+
+<ParamField query="pageSize" type="number" default="20">
+  Number of log entries per page (minimum: 1, maximum: 100)
+</ParamField>
+
+<ParamField query="level" type="string" optional>
+  Filter logs by level:
+  - `info` - Informational messages
+  - `warn` - Warning messages
+  - `error` - Error messages
+  - `debug` - Debug messages
+</ParamField>
+
+### Response
+
+Returns an array of log entries, ordered by timestamp (newest first):
+
+<ResponseField name="id" type="string">
+  Unique log entry ID (ULID)
+</ResponseField>
+
+<ResponseField name="worldId" type="string">
+  World ID this log belongs to
+</ResponseField>
+
+<ResponseField name="timestamp" type="number">
+  Unix timestamp (milliseconds) when the log was created
+</ResponseField>
+
+<ResponseField name="level" type="string">
+  Log level: `info`, `warn`, `error`, or `debug`
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable log message
+</ResponseField>
+
+<ResponseField name="metadata" type="object | null">
+  Additional structured data associated with the log entry (varies by operation)
+</ResponseField>
+
+## Examples
+
+### Get Recent Logs
+
+<CodeGroup>
+
+```bash cURL
+curl "https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/logs?page=1&pageSize=20" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json Response
+[
+  {
+    "id": "01HQZY8K5PQRSTUVWX987654321",
+    "worldId": "01HQZX9Y2ABCDEFGH123456789",
+    "timestamp": 1704240000000,
+    "level": "info",
+    "message": "SPARQL query",
+    "metadata": {
+      "query": "SELECT ?s ?p ?o WHERE { ?s ?p ?o } LIMIT 10"
+    }
+  },
+  {
+    "id": "01HQZY7J4NOPQRSTUVW876543210",
+    "worldId": "01HQZX9Y2ABCDEFGH123456789",
+    "timestamp": 1704239900000,
+    "level": "info",
+    "message": "World data imported",
+    "metadata": {
+      "triples": 1542
+    }
+  },
+  {
+    "id": "01HQZY6I3MNOPQRSTUV765432109",
+    "worldId": "01HQZX9Y2ABCDEFGH123456789",
+    "timestamp": 1704239800000,
+    "level": "info",
+    "message": "Semantic search executed",
+    "metadata": {
+      "query": "artificial intelligence",
+      "subjects": null,
+      "predicates": null,
+      "types": null
+    }
+  }
+]
+```
+
+</CodeGroup>
+
+### Filter by Log Level
+
+<CodeGroup>
+
+```bash cURL (Errors Only)
+curl "https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/logs?level=error" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json Response
+[
+  {
+    "id": "01HQZY5H2LMNOPQRSTU654321098",
+    "worldId": "01HQZX9Y2ABCDEFGH123456789",
+    "timestamp": 1704239700000,
+    "level": "error",
+    "message": "SPARQL query failed",
+    "metadata": {
+      "error": "Syntax error at line 5",
+      "query": "SELEC ?s WHERE { ?s ?p ?o }"
+    }
+  }
+]
+```
+
+</CodeGroup>
+
+### Paginate Through Logs
+
+<CodeGroup>
+
+```bash cURL (Page 2)
+curl "https://your-worlds-instance.com/worlds/01HQZX9Y2ABCDEFGH123456789/logs?page=2&pageSize=50" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+</CodeGroup>
+
+### Using the SDK
+
+```typescript
+import { WorldsSdk } from '@wazoo/worlds-sdk';
+
+const sdk = new WorldsSdk({
+  baseUrl: 'https://your-worlds-instance.com',
+  apiKey: 'YOUR_API_KEY'
+});
+
+// Get recent logs
+const logs = await sdk.worlds.listLogs(
+  '01HQZX9Y2ABCDEFGH123456789',
+  { page: 1, pageSize: 20 }
+);
+
+// Get only errors
+const errors = await sdk.worlds.listLogs(
+  '01HQZX9Y2ABCDEFGH123456789',
+  { level: 'error' }
+);
+
+// Get warnings from page 3
+const warnings = await sdk.worlds.listLogs(
+  '01HQZX9Y2ABCDEFGH123456789',
+  { level: 'warn', page: 3, pageSize: 50 }
+);
+```
+
+## Log Entry Types
+
+Different operations generate different log messages and metadata:
+
+### SPARQL Query
+
+```json
+{
+  "level": "info",
+  "message": "SPARQL query",
+  "metadata": {
+    "query": "SELECT * WHERE { ?s ?p ?o } LIMIT 100"
+  }
+}
+```
+
+### SPARQL Update
+
+```json
+{
+  "level": "info",
+  "message": "SPARQL update",
+  "metadata": {
+    "query": "INSERT DATA { <http://example.org/alice> <http://xmlns.com/foaf/0.1/name> \"Alice\" }"
+  }
+}
+```
+
+### Data Import
+
+```json
+{
+  "level": "info",
+  "message": "World data imported",
+  "metadata": {
+    "triples": 2847
+  }
+}
+```
+
+### Semantic Search
+
+```json
+{
+  "level": "info",
+  "message": "Semantic search executed",
+  "metadata": {
+    "query": "machine learning",
+    "subjects": ["http://example.org/topic/ai"],
+    "predicates": null,
+    "types": ["http://schema.org/Article"]
+  }
+}
+```
+
+## Metadata Fields
+
+Common metadata fields across log types:
+
+<ResponseField name="query" type="string">
+  SPARQL query or search query text (truncated to 500-1000 characters)
+</ResponseField>
+
+<ResponseField name="triples" type="number">
+  Number of triples affected (for import operations)
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message (for error-level logs)
+</ResponseField>
+
+<ResponseField name="subjects" type="string[] | null">
+  Subject filter URIs (for search operations)
+</ResponseField>
+
+<ResponseField name="predicates" type="string[] | null">
+  Predicate filter URIs (for search operations)
+</ResponseField>
+
+<ResponseField name="types" type="string[] | null">
+  Type filter URIs (for search operations)
+</ResponseField>
+
+## Pagination Behavior
+
+- Logs are ordered by **timestamp descending** (newest first)
+- The `page` parameter is 1-indexed
+- If `page` exceeds available pages, an empty array is returned
+- `pageSize` is clamped between 1 and 100
+
+## Log Levels
+
+<table>
+  <thead>
+    <tr>
+      <th>Level</th>
+      <th>Description</th>
+      <th>Examples</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>info</code></td>
+      <td>Normal operations</td>
+      <td>Queries, updates, imports, searches</td>
+    </tr>
+    <tr>
+      <td><code>warn</code></td>
+      <td>Potential issues</td>
+      <td>Slow queries, deprecated features</td>
+    </tr>
+    <tr>
+      <td><code>error</code></td>
+      <td>Operation failures</td>
+      <td>Failed queries, parse errors, validation errors</td>
+    </tr>
+    <tr>
+      <td><code>debug</code></td>
+      <td>Detailed debugging</td>
+      <td>Internal state, performance metrics</td>
+    </tr>
+  </tbody>
+</table>
+
+## Error Responses
+
+<ResponseField name="400 Bad Request" type="error">
+  Invalid pagination parameters (e.g., negative page number)
+</ResponseField>
+
+<ResponseField name="401 Unauthorized" type="error">
+  Missing or invalid authentication
+</ResponseField>
+
+<ResponseField name="403 Forbidden" type="error">
+  Insufficient permissions
+</ResponseField>
+
+<ResponseField name="404 Not Found" type="error">
+  World does not exist
+</ResponseField>
+
+<ResponseField name="500 Internal Server Error" type="error">
+  World database not available
+</ResponseField>
+
+## Use Cases
+
+<Note>
+**Auditing**: Track all operations performed on a world
+
+**Debugging**: Investigate query failures and performance issues
+
+**Monitoring**: Monitor world activity and usage patterns
+
+**Analytics**: Analyze query patterns and user behavior
+</Note>
+
+## Best Practices
+
+1. **Filter by level** to reduce noise when troubleshooting
+2. **Use appropriate page sizes** - smaller for real-time monitoring, larger for batch analysis
+3. **Monitor error logs** regularly to catch issues early
+4. **Archive old logs** if you need long-term retention (logs are stored per-world)
+
+<Warning>
+Query text in metadata is truncated to prevent oversized log entries. Full queries are not preserved for very large SPARQL operations.
+</Warning>
